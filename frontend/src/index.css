@@ -293,3 +293,125 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* --- Animated Truck Markers --- */
+.leaflet-marker-icon.custom-truck-icon {
+  background: transparent !important;
+  border: none !important;
+  transition: transform 0.25s linear !important;
+}
+
+.truck-marker-container {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.truck-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  border: 2px solid white;
+  position: relative;
+  z-index: 2;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+}
+
+.direction-arrow {
+  position: absolute;
+  top: -6px;
+  font-size: 8px;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+
+.truck-pulse-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.truck-pulse-moving {
+  animation: radar-pulse-green 1.8s infinite cubic-bezier(0.2, 0.8, 0.4, 1);
+}
+
+.truck-pulse-idle {
+  animation: radar-pulse-orange 2s infinite ease-out;
+}
+
+@keyframes radar-pulse-green {
+  0% {
+    width: 36px;
+    height: 36px;
+    opacity: 0.85;
+    background: rgba(46, 204, 113, 0.6);
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.8);
+  }
+  100% {
+    width: 72px;
+    height: 72px;
+    opacity: 0;
+    background: rgba(46, 204, 113, 0);
+  }
+}
+
+@keyframes radar-pulse-orange {
+  0% {
+    width: 36px;
+    height: 36px;
+    opacity: 0.8;
+    background: rgba(243, 156, 18, 0.5);
+    box-shadow: 0 0 10px rgba(243, 156, 18, 0.6);
+  }
+  100% {
+    width: 64px;
+    height: 64px;
+    opacity: 0;
+    background: rgba(243, 156, 18, 0);
+  }
+}
+
+.truck-label-chip {
+  position: absolute;
+  top: -24px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(4px);
+  color: white;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.15);
+  pointer-events: none;
+}
+
+.truck-label-name {
+  color: #38bdf8;
+}
+
+.truck-label-speed {
+  color: #4ade80;
+}
+
+.truck-label-status {
+  color: #fb923c;
+}

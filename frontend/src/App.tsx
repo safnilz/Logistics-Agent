@@ -29,17 +29,40 @@ const greenIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
-// Custom SVG solid badge for live trucks
-const truckIcon = L.divIcon({
-  className: 'truck-marker-wrapper',
-  html: `<div style="background: var(--accent-cyan); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid white;">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
-  </div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16]
-});
-
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000/api';
+
+// Dynamic animated truck icon generator
+const createTruckIcon = (marker: MarkerData) => {
+  const isMoving = marker.motion && marker.speed > 0;
+  const isIdle = marker.ignition && !marker.motion;
+  const color = isMoving ? '#2a9d8f' : (isIdle ? '#f4a261' : '#0077b6');
+  const pulseClass = isMoving ? 'truck-pulse-moving' : (isIdle ? 'truck-pulse-idle' : '');
+  const shortName = marker.deviceName.split(' ')[0];
+
+  return L.divIcon({
+    className: 'custom-truck-icon',
+    html: `
+      <div class="truck-marker-container">
+        ${pulseClass ? `<div class="truck-pulse-ring ${pulseClass}"></div>` : ''}
+        <div class="truck-avatar" style="background: ${color}; transform: rotate(${marker.course || 0}deg);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+          ${isMoving ? `<div class="direction-arrow">▲</div>` : ''}
+        </div>
+        <div class="truck-label-chip">
+          <span class="truck-label-name">${shortName}</span>
+          ${isMoving ? `<span class="truck-label-speed">${marker.speed} km/h</span>` : `<span class="truck-label-status">${isIdle ? 'Idle' : 'Parked'}</span>`}
+        </div>
+      </div>
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22]
+  });
+};
 
 type Message = {
   id: string;
@@ -708,7 +731,7 @@ function App() {
               <MapContainer center={centerPosition} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={true}>
                 <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                 {displayMarkers.map(m => (
-                  <Marker key={m.id} position={[m.latitude, m.longitude]} icon={truckIcon}>
+                  <Marker key={m.id} position={[m.latitude, m.longitude]} icon={createTruckIcon(m)}>
                     <Popup><div style={{ color: '#333' }}><strong>{m.deviceName}</strong><br/>Speed: {m.speed} km/h<br/>Status: {m.motion ? 'Moving' : 'Idle'}</div></Popup>
                   </Marker>
                 ))}
@@ -739,8 +762,8 @@ function App() {
             
             <MapContainer center={centerPosition} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={true}>
               <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-              {liveMarkers.map(m => (
-                <Marker key={m.id} position={[m.latitude, m.longitude]} icon={truckIcon}>
+              {displayMarkers.map(m => (
+                <Marker key={m.id} position={[m.latitude, m.longitude]} icon={createTruckIcon(m)}>
                   <Popup><div style={{ color: '#333' }}><strong>{m.deviceName}</strong><br/>Speed: {m.speed} km/h<br/>Status: {m.motion ? 'Moving' : 'Idle'}</div></Popup>
                 </Marker>
               ))}
