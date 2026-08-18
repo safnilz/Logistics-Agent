@@ -816,11 +816,11 @@ Capabilities & Rules:
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '20px', flex: 1 }}>
+            <div style={{ display: 'flex', gap: '20px', height: '460px', minHeight: '400px' }}>
               {/* Telemetry Breakdown */}
-              <div className="glass-panel" style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ marginTop: 0 }}>Live Telemetry & Utilization</h3>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+              <div className="glass-panel" style={{ flex: 1.4, display: 'flex', flexDirection: 'column', padding: '20px', overflow: 'hidden', height: '100%', minHeight: 0 }}>
+                <h3 style={{ marginTop: 0, marginBottom: '16px', flexShrink: 0 }}>Live Telemetry & Utilization</h3>
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -870,10 +870,10 @@ Capabilities & Rules:
               </div>
 
               {/* Mini AI Agent */}
-              <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0 }}>
+              <div className="glass-panel chat-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', height: '100%', minHeight: 0 }}>
                 
                 {/* AI Proactive Insight Banner */}
-                <div style={{ background: 'linear-gradient(90deg, rgba(69, 162, 158, 0.2), transparent)', padding: '12px 20px', borderBottom: '1px solid var(--surface-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: 'linear-gradient(90deg, rgba(69, 162, 158, 0.2), transparent)', padding: '12px 20px', borderBottom: '1px solid var(--surface-border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                   <div style={{ background: 'rgba(69, 162, 158, 0.2)', padding: 6, borderRadius: '50%', display: 'flex' }}>
                     <Bot size={16} color="var(--accent-cyan)" />
                   </div>
@@ -885,10 +885,28 @@ Capabilities & Rules:
                 <div className="chat-header">
                   <Bot className="chat-header-icon" /> Ehfaaz AI Analyst
                 </div>
-                <div className="chat-messages" style={{ flex: 1 }}>
+                <div className="chat-messages" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                   {messages.map(msg => (
                     <div key={msg.id} className={`message ${msg.role}`}>
                       <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{msg.content}</div>
+                      {msg.action && (
+                        <div className="action-card">
+                          <div style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                            {msg.action.type === 'move_stop' ? 'Proposed Route Change:' : 'Proposed Job Creation:'}
+                          </div>
+                          <div style={{ margin: '8px 0', fontSize: '0.9rem' }}>{msg.action.reason}</div>
+                          {msg.action.status === 'pending' ? (
+                            <div className="action-buttons">
+                              <button className="btn btn-confirm" onClick={() => handleAction(msg.id, true)}>Confirm</button>
+                              <button className="btn btn-reject" onClick={() => handleAction(msg.id, false)}>Reject</button>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 8, fontSize: '0.8rem', color: msg.action.status === 'confirmed' ? 'var(--success)' : 'var(--danger)' }}>
+                              {msg.action.status ? msg.action.status.toUpperCase() : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {isThinking && (
