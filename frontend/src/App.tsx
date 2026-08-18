@@ -1023,25 +1023,25 @@ Capabilities & Rules:
 
                 <div style={{ width: '100%', height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={fuelTimelineData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                    <AreaChart data={fuelTimelineData} margin={{ top: 15, right: 25, left: -5, bottom: 5 }}>
                       <defs>
                         <linearGradient id="isuzuFuelGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#00b4d8" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#00b4d8" stopOpacity={0.0}/>
+                          <stop offset="5%" stopColor="#0077b6" stopOpacity={0.45}/>
+                          <stop offset="95%" stopColor="#0077b6" stopOpacity={0.02}/>
                         </linearGradient>
                         <linearGradient id="fusoFuelGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#9b59b6" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#9b59b6" stopOpacity={0.0}/>
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.45}/>
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="time" stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
-                      <YAxis stroke="var(--text-secondary)" fontSize={12} unit=" L" tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" vertical={false} />
+                      <XAxis dataKey="time" stroke="#1d3557" fontSize={12} fontWeight={600} tickLine={false} />
+                      <YAxis stroke="#457b9d" fontSize={12} unit=" L" tickLine={false} />
                       <RechartsTooltip content={<CustomChartTooltip unit="L" />} />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.85rem', fontWeight: 500 }} />
-                      <Area type="monotone" dataKey="Isuzu 48390" stroke="#00b4d8" strokeWidth={2.5} fillOpacity={1} fill="url(#isuzuFuelGrad)" />
-                      <Area type="monotone" dataKey="Fuso 54127" stroke="#9b59b6" strokeWidth={2.5} fillOpacity={1} fill="url(#fusoFuelGrad)" />
-                      <Line type="monotone" dataKey="Target Baseline" stroke="#2a9d8f" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.88rem', fontWeight: 600 }} />
+                      <Area type="monotone" dataKey="Isuzu 48390" stroke="#0077b6" strokeWidth={3} fillOpacity={1} fill="url(#isuzuFuelGrad)" />
+                      <Area type="monotone" dataKey="Fuso 54127" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#fusoFuelGrad)" />
+                      <Line type="monotone" dataKey="Target Baseline" stroke="#10b981" strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 4, fill: '#10b981' }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -1049,15 +1049,15 @@ Capabilities & Rules:
                 <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: '1px solid var(--surface-border)', paddingTop: 14, marginTop: 10, fontSize: '0.85rem' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>Isuzu 48390</div>
-                    <div style={{ fontWeight: 700, color: '#00b4d8', fontSize: '1rem', marginTop: 2 }}>{isuzuFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(26 L/100km)</span></div>
+                    <div style={{ fontWeight: 700, color: '#0077b6', fontSize: '1rem', marginTop: 2 }}>{isuzuFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(26 L/100km)</span></div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>Fuso 54127</div>
-                    <div style={{ fontWeight: 700, color: '#9b59b6', fontSize: '1rem', marginTop: 2 }}>{fusoFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(23.5 L/100km)</span></div>
+                    <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1rem', marginTop: 2 }}>{fusoFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(23.5 L/100km)</span></div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>Fleet Benchmark</div>
-                    <div style={{ fontWeight: 700, color: '#2a9d8f', fontSize: '1rem', marginTop: 2 }}>{(parseFloat(totalDailyDistance) * 0.22).toFixed(1)} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(22 L/100km)</span></div>
+                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1rem', marginTop: 2 }}>{(parseFloat(totalDailyDistance) * 0.22).toFixed(1)} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(22 L/100km)</span></div>
                   </div>
                 </div>
               </div>
@@ -1083,14 +1083,24 @@ Capabilities & Rules:
 
                 <div style={{ width: '100%', height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={engineDiagnosticsData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
-                      <YAxis stroke="var(--text-secondary)" fontSize={12} unit=" hrs" tickLine={false} />
+                    <BarChart data={engineDiagnosticsData} margin={{ top: 15, right: 25, left: -5, bottom: 5 }} barSize={52}>
+                      <defs>
+                        <linearGradient id="motionBarGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0077b6" />
+                          <stop offset="100%" stopColor="#023e8a" />
+                        </linearGradient>
+                        <linearGradient id="idleBarGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" />
+                          <stop offset="100%" stopColor="#d97706" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" vertical={false} />
+                      <XAxis dataKey="name" stroke="#1d3557" fontSize={13} fontWeight={600} tickLine={false} />
+                      <YAxis stroke="#457b9d" fontSize={12} unit=" hrs" tickLine={false} />
                       <RechartsTooltip content={<CustomChartTooltip unit="hrs" />} />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.85rem', fontWeight: 500 }} />
-                      <Bar dataKey="Motion Hours" fill="var(--accent-cyan)" radius={[0, 0, 0, 0]} stackId="a" />
-                      <Bar dataKey="Idle Hours" fill="#f4a261" radius={[6, 6, 0, 0]} stackId="a" />
+                      <Legend verticalAlign="top" height={36} iconType="square" wrapperStyle={{ fontSize: '0.88rem', fontWeight: 600 }} />
+                      <Bar dataKey="Motion Hours" fill="url(#motionBarGrad)" stackId="a" />
+                      <Bar dataKey="Idle Hours" fill="url(#idleBarGrad)" radius={[6, 6, 0, 0]} stackId="a" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1126,15 +1136,21 @@ Capabilities & Rules:
 
                 <div style={{ width: '100%', height: 260 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={payloadDistanceData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
-                      <YAxis yAxisId="left" stroke="var(--text-secondary)" fontSize={12} unit=" kg" tickLine={false} />
-                      <YAxis yAxisId="right" orientation="right" stroke="var(--text-secondary)" fontSize={12} unit=" km" tickLine={false} />
+                    <ComposedChart data={payloadDistanceData} margin={{ top: 15, right: 25, left: -5, bottom: 5 }} barSize={48}>
+                      <defs>
+                        <linearGradient id="payloadBarGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" />
+                          <stop offset="100%" stopColor="#059669" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" vertical={false} />
+                      <XAxis dataKey="name" stroke="#1d3557" fontSize={13} fontWeight={600} tickLine={false} />
+                      <YAxis yAxisId="left" stroke="#059669" fontSize={12} unit=" kg" tickLine={false} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#e11d48" fontSize={12} unit=" km" tickLine={false} />
                       <RechartsTooltip content={<CustomChartTooltip />} />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.85rem', fontWeight: 500 }} />
-                      <Bar yAxisId="left" dataKey="Payload Carried (kg)" fill="#2a9d8f" radius={[6, 6, 0, 0]} />
-                      <Line yAxisId="right" type="monotone" dataKey="Distance (km)" stroke="#e76f51" strokeWidth={3} dot={{ r: 5 }} />
+                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.88rem', fontWeight: 600 }} />
+                      <Bar yAxisId="left" dataKey="Payload Carried (kg)" fill="url(#payloadBarGrad)" radius={[8, 8, 0, 0]} />
+                      <Line yAxisId="right" type="monotone" dataKey="Distance (km)" stroke="#e11d48" strokeWidth={3.5} dot={{ r: 6, fill: '#e11d48', strokeWidth: 2, stroke: '#fff' }} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -1158,15 +1174,15 @@ Capabilities & Rules:
 
                 <div style={{ width: '100%', height: 260 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={speedVelocityData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="time" stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
-                      <YAxis stroke="var(--text-secondary)" fontSize={12} unit=" km/h" tickLine={false} />
+                    <LineChart data={speedVelocityData} margin={{ top: 15, right: 25, left: -5, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" vertical={false} />
+                      <XAxis dataKey="time" stroke="#1d3557" fontSize={12} fontWeight={600} tickLine={false} />
+                      <YAxis stroke="#457b9d" fontSize={12} unit=" km/h" tickLine={false} />
                       <RechartsTooltip content={<CustomChartTooltip unit="km/h" />} />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.85rem', fontWeight: 500 }} />
-                      <Line type="monotone" dataKey="Isuzu 48390" stroke="#00b4d8" strokeWidth={2.5} dot={{ r: 4 }} />
-                      <Line type="monotone" dataKey="Fuso 54127" stroke="#9b59b6" strokeWidth={2.5} dot={{ r: 4 }} />
-                      <Line type="monotone" dataKey="Free-Flow Benchmark" stroke="#2a9d8f" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
+                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.88rem', fontWeight: 600 }} />
+                      <Line type="monotone" dataKey="Isuzu 48390" stroke="#0284c7" strokeWidth={3} dot={{ r: 5, fill: '#0284c7', strokeWidth: 2, stroke: '#fff' }} />
+                      <Line type="monotone" dataKey="Fuso 54127" stroke="#7c3aed" strokeWidth={3} dot={{ r: 5, fill: '#7c3aed', strokeWidth: 2, stroke: '#fff' }} />
+                      <Line type="monotone" dataKey="Free-Flow Benchmark" stroke="#10b981" strokeWidth={2} strokeDasharray="4 4" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
