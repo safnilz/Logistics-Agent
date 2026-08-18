@@ -194,9 +194,9 @@ def get_optimization_analysis(vehicle_id: str = None):
     # Simulated financial audit
     audit = "Financial & Optimization Audit:\n"
     if not vehicle_id or "isuzu" in vehicle_id.lower():
-        audit += "Isuzu 48390: Operating at +12% fuel variance. Approximately 3.5L (10.6 AED) wasted today due to 45 minutes of excessive idling at collection sites. Optimization Action: Enforce a strict 5-minute engine cutoff policy during loading.\n"
+        audit += "Isuzu 48390 (1-Ton): Operating at +12% fuel variance. Approximately 3.5L (10.6 AED) wasted today due to 45 minutes of excessive idling at collection sites. Payload limit: 1,000 kg. Optimization Action: Enforce a strict 5-minute engine cutoff policy during loading.\n"
     if not vehicle_id or "fuso" in vehicle_id.lower():
-        audit += "Fuso 54127: Operating at -4% fuel variance (Highly Efficient). However, route optimization is poor as the vehicle is severely under-utilized (0 kg load). Optimization Action: Re-assign pending jobs from Isuzu to Fuso to balance wear-and-tear and maximize ROI on driver wages.\n"
+        audit += "Fuso 54127 (3-Ton): Operating at -4% fuel variance (Highly Efficient, 3,000 kg payload capacity). However, route optimization can be improved by assigning larger pending stops (like JOB-003) to Fuso to balance wear-and-tear and maximize ROI on driver wages.\n"
     return audit
 
 # --- Endpoints ---

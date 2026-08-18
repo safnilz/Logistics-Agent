@@ -178,13 +178,13 @@ const DEFAULT_MARKERS: MarkerData[] = [
 
 const DEFAULT_SCHEDULE = {
   vehicles: [
-    { id: 'V1', name: 'Isuzu 48390 (3-Ton)', max_weight_kg: 5000.0, max_volume_m3: 20.0 },
-    { id: 'V2', name: 'Fuso 54127 (7-Ton)', max_weight_kg: 3000.0, max_volume_m3: 12.0 }
+    { id: 'V1', name: 'Isuzu 48390 (1-Ton)', max_weight_kg: 1000.0, max_volume_m3: 6.0 },
+    { id: 'V2', name: 'Fuso 54127 (3-Ton)', max_weight_kg: 3000.0, max_volume_m3: 14.0 }
   ],
   jobs: [
-    { id: 'JOB-001', type: 'Recova', client: 'Client A', location: 'Downtown', latitude: 25.2048, longitude: 55.2708, allocated_time: '09:00 - 12:00', expected_bins: 2, bin_size: '240L', expected_weight_kg: 500.0, assigned_vehicle: 'V1', status: 'pending', eta_minutes: 18 },
-    { id: 'JOB-002', type: 'Recova', client: 'Client B', location: 'Business Bay', latitude: 25.1856, longitude: 55.2666, allocated_time: '13:00 - 15:00', expected_bins: 5, bin_size: '1100L', expected_weight_kg: 1200.0, assigned_vehicle: 'V1', status: 'pending', eta_minutes: 32 },
-    { id: 'JOB-003', type: 'ReClaim', client: 'Client C', location: 'JLT', latitude: 25.0773, longitude: 55.1403, allocated_time: '10:00 - 16:00', expected_bins: 1, bin_size: 'CBM', expected_weight_kg: 800.0, assigned_vehicle: 'V2', status: 'pending', eta_minutes: 12 }
+    { id: 'JOB-001', type: 'Recova', client: 'Client A', location: 'Downtown', latitude: 25.2048, longitude: 55.2708, allocated_time: '09:00 - 12:00', expected_bins: 2, bin_size: '240L', expected_weight_kg: 400.0, assigned_vehicle: 'V1', status: 'pending', eta_minutes: 18 },
+    { id: 'JOB-002', type: 'Recova', client: 'Client B', location: 'Business Bay', latitude: 25.1856, longitude: 55.2666, allocated_time: '13:00 - 15:00', expected_bins: 5, bin_size: '1100L', expected_weight_kg: 1200.0, assigned_vehicle: 'V2', status: 'pending', eta_minutes: 32 },
+    { id: 'JOB-003', type: 'ReClaim', client: 'Client C', location: 'JLT', latitude: 25.0773, longitude: 55.1403, allocated_time: '10:00 - 16:00', expected_bins: 1, bin_size: 'CBM', expected_weight_kg: 600.0, assigned_vehicle: null, status: 'unassigned', eta_minutes: 12 }
   ]
 };
 
@@ -340,30 +340,39 @@ function App() {
     const GROQ_KEY = localStorage.getItem('ehfaaz_groq_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || '';
     if (!GROQ_KEY) return null;
 
-    let context = "Live Vehicle Telemetry & KPIs (Today):\n";
+    let context = "Live Vehicle Telemetry & Fleet Specs:\n";
+    context += "- Vehicle 1: Isuzu 48390 (1-Ton Pickup/Truck, Max Payload: 1,000 kg, Volume: 6 m3). Used for fast urban pickups and lighter Recova loads.\n";
+    context += "- Vehicle 2: Fuso 54127 (3-Ton Medium Truck, Max Payload: 3,000 kg, Volume: 14 m3). Used for heavier cargo, bulk ReClaim, and 1100L bin collections.\n\n";
+
+    context += "Current Live GPS & Engine Telemetry (Today):\n";
     liveMarkers.forEach(m => {
       context += `- ${m.deviceName}: Speed ${m.speed} km/h, Ignition: ${m.ignition ? 'ON' : 'OFF'}, Motion: ${m.motion ? 'Moving' : 'Stopped'}, Engine Hours: ${m.engine_hours}h, Daily Engine Hours: ${m.daily_engine_hours}h, Address: ${m.address || 'Dubai'}\n`;
     });
 
-    context += "\nHistorical Telemetry (Yesterday):\n";
-    context += "- Isuzu 48390 (3-Ton): 210.5 km traveled, 6.4h engine runtime, 1.2h (72 mins) excessive idling in Al Quoz & JAFZA, wasting approx 4.8 Liters of diesel (14.5 AED, +14% fuel variance).\n";
-    context += "- Fuso 54127 (7-Ton): 165.2 km traveled, 4.8h engine runtime, 0.3h (18 mins) idle, wasting ~0.9L diesel (-4% fuel variance, highly efficient).\n";
+    context += "\nHistorical Fleet Telemetry (Yesterday):\n";
+    context += "- Isuzu 48390 (1-Ton): 210.5 km traveled, 6.4h total engine runtime, 1.2h (72 mins) excessive idling in Al Quoz & JAFZA, wasting approx 4.8 Liters of diesel (14.5 AED, +14% fuel variance).\n";
+    context += "- Fuso 54127 (3-Ton): 165.2 km traveled, 4.8h engine runtime, 0.3h (18 mins) idle, wasting ~0.9L diesel (-4% fuel variance, highly efficient).\n";
 
-    context += "\nCurrent Schedule:\n";
+    context += "\nFleet Schedule & Assignments:\n";
     schedule.jobs?.forEach(j => {
       context += `- Job ${j.id} (${j.client} at ${j.location}): ${j.expected_weight_kg}kg, Assigned: ${j.assigned_vehicle || 'Unassigned'}, Status: ${j.status}\n`;
     });
 
-    const systemPrompt = `You are the Ehfaaz Logistics AI Agent. You are a world-class fleet analyst and logistics coordinator for Ehfaaz in the UAE.
-You have real-time access to live vehicle telemetry, yesterday's historical performance, and daily trip schedules:
+    context += "\nOperational Constants:\n";
+    context += "- Diesel fuel cost: 3.03 AED/Liter.\n";
+    context += "- Isuzu 1-Ton baseline consumption: ~16 L/100km. Fuso 3-Ton baseline: ~24 L/100km.\n";
+    context += "- Geofence radius for automated check-in/completion: 150 meters.\n";
+
+    const systemPrompt = `You are the Ehfaaz Logistics AI Agent. You are a world-class fleet analyst, operations dispatcher, and route coordinator for Ehfaaz in the UAE.
+You have unrestricted access to real-time telemetry, vehicle specifications (1-Ton Isuzu & 3-Ton Fuso), historical logs, client manifests, and economic data:
 ${context}
 
-Instructions:
-1. Provide concise, direct, professional, and highly analytical answers to the user's specific questions.
-2. If asked about yesterday or historical fuel/idling: provide the exact numbers for Isuzu 48390 (72 mins idle, 4.8L diesel / 14.5 AED wasted) or Fuso 54127 (18 mins idle, 0.9L), and offer actionable recommendations.
-3. If asked about today's idling: report that Isuzu 48390 has accumulated ~45 minutes of idle today resulting in ~3.5L fuel waste (+12% variance), and advise cutting off the engine during loading.
-4. If asked about route changes or assigning jobs: suggest moving pending job JOB-003 to Vehicle 1 (Isuzu) or Vehicle 2 (Fuso).
-5. Maintain multi-turn conversational context seamlessly.`;
+Capabilities & Rules:
+1. Direct, Expert Answers: Answer ANY operational, financial, driver, fuel, route, or scheduling question directly and analytically. Never hesitate or give generic non-answers.
+2. Accurate Vehicle Specifications: Remember that Isuzu 48390 is 1-Ton (1,000 kg capacity) and Fuso 54127 is 3-Ton (3,000 kg capacity). Always verify payload limits before proposing stop assignments.
+3. Idling & Fuel Audits: If asked about idling (today or yesterday), provide the exact numbers (Isuzu 45 mins / 3.5L / 10.6 AED today; 72 mins / 4.8L / 14.5 AED yesterday) and propose actionable engine cutoff policies.
+4. Route Optimization: Recommend moving unassigned jobs (like JOB-003 at JLT) to vehicles with remaining payload and volume capacity without overloading.
+5. Conversational Style: Be concise, clear, and professional. Respond in natural text.`;
 
     try {
       const chatHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
@@ -428,7 +437,7 @@ Instructions:
               type: 'move_stop',
               job_id: 'JOB-003',
               vehicle_id: 'V1',
-              reason: 'Vehicle 1 has available payload capacity and is operating along the JLT corridor.',
+              reason: 'Vehicle 1 (Isuzu 1-Ton) has 600 kg capacity remaining and is operating along the JLT corridor.',
               status: 'pending'
             };
           } else if (lower.includes('create job') || lower.includes('new job')) {
@@ -436,7 +445,7 @@ Instructions:
               type: 'create_job',
               client_name: 'Client A',
               job_type: 'Recova',
-              expected_weight_kg: 450,
+              expected_weight_kg: 400,
               reason: 'Scheduled collection at Downtown location.',
               status: 'pending'
             };
@@ -453,20 +462,22 @@ Instructions:
       } else {
         // 3. Fallback deterministic telematics answering if both backend and Groq network fail
         const lower = userText.toLowerCase();
-        let fallbackReply = "I have reviewed your request. Current live fleet status shows 2 active trucks (Isuzu 48390 in Al Barsha South and Fuso 54127 in Dubai South).";
+        let fallbackReply = "I have reviewed your request. Current live fleet status shows 2 active trucks (Isuzu 48390 1-Ton in Al Barsha South and Fuso 54127 3-Ton in Dubai South).";
         let fallbackAction: any = undefined;
 
         if (lower.includes("yesterday") || lower.includes("previous") || lower.includes("past") || lower.includes("before") || lower.includes("history")) {
-          fallbackReply = "Yesterday's Telemetry & Idling Audit:\n• Isuzu 48390 (3-Ton): Traveled 210.5 km with 1 hour 12 minutes (72 mins) of excessive idle recorded at loading bays in Al Quoz and JAFZA.\n• Fuel Impact: Idling consumed ~4.8 Liters of diesel (~14.5 AED at +14% variance).\n• Fuso 54127 (7-Ton): Highly efficient with only 18 minutes of total dwell time (0.9L fuel wasted).\n• Recommendation: Enforcing a 5-minute engine cutoff policy yesterday would have saved ~11.2 AED across morning routes.";
+          fallbackReply = "Yesterday's Telemetry & Idling Audit:\n• Isuzu 48390 (1-Ton): Traveled 210.5 km with 1 hour 12 minutes (72 mins) of excessive idle recorded at loading bays in Al Quoz and JAFZA.\n• Fuel Impact: Idling consumed ~4.8 Liters of diesel (~14.5 AED at +14% variance).\n• Fuso 54127 (3-Ton): Highly efficient with only 18 minutes of total dwell time (0.9L fuel wasted).\n• Recommendation: Enforcing a 5-minute engine cutoff policy yesterday would have saved ~11.2 AED across morning routes.";
         } else if (lower.includes("idle") || lower.includes("idling") || lower.includes("stopped") || lower.includes("how long")) {
-          fallbackReply = "Vehicle Telemetry Audit (Today):\n• Isuzu 48390 (Al Barsha South / Dubai Hills) is currently IDLE with ignition ON but speed at 0 km/h. It has been idling for approximately 45 minutes today, accumulating 4.19 daily engine hours.\n• Fuel Impact: Idling has wasted approximately 3.5 Liters of diesel (+12% fuel variance / ~10.6 AED). Suggest instructing the driver to switch off the engine during dwell time.";
+          fallbackReply = "Vehicle Telemetry Audit (Today):\n• Isuzu 48390 (1-Ton, Al Barsha South / Dubai Hills) is currently IDLE with ignition ON but speed at 0 km/h. It has been idling for approximately 45 minutes today, accumulating 4.19 daily engine hours.\n• Fuel Impact: Idling has wasted approximately 3.5 Liters of diesel (+12% fuel variance / ~10.6 AED). Suggest instructing the driver to switch off the engine during dwell time.";
+        } else if (lower.includes("capacity") || lower.includes("ton") || lower.includes("specs") || lower.includes("payload")) {
+          fallbackReply = "Fleet Vehicle Specifications:\n• Isuzu 48390: 1-Ton pickup (Max payload: 1,000 kg, Volume: 6 m³). Ideal for rapid urban pickups & Recova.\n• Fuso 54127: 3-Ton truck (Max payload: 3,000 kg, Volume: 14 m³). Designed for heavy bulk collections & ReClaim.";
         } else if (lower.includes("move") || lower.includes("reassign") || lower.includes("change route")) {
-          fallbackReply = "I propose moving pending collection JOB-003 (Client C - JLT, 800 kg) to Vehicle 1 (Isuzu 48390) which has remaining payload capacity and is closer to the JLT corridor.";
+          fallbackReply = "I propose moving pending collection JOB-003 (Client C - JLT, 600 kg) to Vehicle 1 (Isuzu 48390 1-Ton, which has 600 kg remaining capacity) or Vehicle 2 (Fuso 54127 3-Ton, with 1,800 kg capacity).";
           fallbackAction = {
             type: "move_stop",
             job_id: "JOB-003",
             vehicle_id: "V1",
-            reason: "Vehicle 1 has capacity for 800 kg and aligns with the JLT collection window."
+            reason: "Vehicle 1 (Isuzu 1-Ton) has 600 kg remaining capacity and is operating along the JLT corridor."
           };
         } else if (lower.includes("create") || lower.includes("new job") || lower.includes("schedule")) {
           fallbackReply = "I can help you schedule a new collection job. I have prepared a proposal:";
@@ -474,13 +485,13 @@ Instructions:
             type: "create_job",
             client_name: "Client A",
             job_type: "Recova",
-            expected_weight_kg: 450,
+            expected_weight_kg: 400,
             reason: "Scheduled routine Recova collection at Downtown location."
           };
         } else if (lower.includes("optimize") || lower.includes("audit") || lower.includes("fuel") || lower.includes("efficiency")) {
-          fallbackReply = "Financial & Optimization Audit:\n• Isuzu 48390: Operating at +12% fuel variance due to excessive idling in loading areas. Recommended action: Enforce 5-minute engine cutoff.\n• Fuso 54127: Running efficiently at 38.5 km/h in Dubai South with 3,000 kg capacity available.";
+          fallbackReply = "Financial & Optimization Audit:\n• Isuzu 48390 (1-Ton): Operating at +12% fuel variance due to excessive idling in loading areas. Recommended action: Enforce 5-minute engine cutoff.\n• Fuso 54127 (3-Ton): Running efficiently at 38.5 km/h in Dubai South with 3,000 kg capacity available.";
         } else {
-          fallbackReply = "Hello! I am monitoring the Ehfaaz fleet in real-time. We have 3 scheduled jobs across Downtown, Business Bay, and JLT, with 2 trucks tracked live (Isuzu 48390 & Fuso 54127). How can I assist you with route optimization or fleet telemetry?";
+          fallbackReply = "Hello! I am monitoring the Ehfaaz fleet in real-time. We have 3 scheduled jobs across Downtown, Business Bay, and JLT, with 2 trucks tracked live: Isuzu 48390 (1-Ton) & Fuso 54127 (3-Ton). How can I assist you with route optimization, fuel analysis, or fleet telemetry?";
         }
 
         setMessages(prev => [
