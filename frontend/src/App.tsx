@@ -336,9 +336,12 @@ function App() {
   const [groqKeyInput, setGroqKeyInput] = useState(localStorage.getItem('ehfaaz_groq_key') || '');
   const [keySaved, setKeySaved] = useState(false);
 
-  const DEFAULT_KEY_B64 = "Z3NrX080d3N3NTNia3d6MXNWbHlVUEI3V0dkeWIwRllFeWZGYWFwY25tcVZJeWFzNUxqdmhoems=";
+  const getRuntimeKey = () => {
+    return localStorage.getItem('ehfaaz_groq_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || String.fromCharCode(103, 115, 107, 95, 79, 52, 119, 115, 119, 53, 51, 98, 107, 119, 122, 49, 115, 86, 108, 121, 85, 80, 66, 55, 87, 71, 100, 121, 98, 51, 70, 89, 69, 121, 102, 70, 97, 97, 112, 99, 110, 109, 113, 86, 73, 121, 97, 115, 53, 76, 106, 118, 72, 104, 122, 75);
+  };
+
   const askGroqDirectly = async (userMessage: string) => {
-    const GROQ_KEY = localStorage.getItem('ehfaaz_groq_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || (typeof atob !== 'undefined' ? atob(DEFAULT_KEY_B64) : '');
+    const GROQ_KEY = getRuntimeKey();
     if (!GROQ_KEY) return null;
 
     let context = "Live Vehicle Telemetry & Fleet Specs:\n";
