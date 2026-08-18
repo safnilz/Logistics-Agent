@@ -231,16 +231,105 @@ function App() {
     }
   };
 
-  const fetchLiveTracking = async () => {
+  let trackerTokenRef = useRef<string | null>(null);
+
+  const fetchDirectTrackerPositions = async (): Promise<MarkerData[] | null> => {
     try {
-      const res = await axios.get(`${API_BASE}/tracker/live`);
-      if (res.data && res.data.length > 0) {
-        setLiveMarkers(res.data);
-        targetMarkersRef.current = res.data;
-        setDisplayMarkers(prev => prev.length === 0 ? res.data : prev);
+      if (!trackerTokenRef.current) {
+        const loginRes = await fetch('https://beta.mylocatorplus.com/locator-clients/api/v1/login-v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_name: 'alwakeel',
+            user_password: 'admin',
+            isAdmin: 'customer'
+          })
+        });
+        const loginData = await loginRes.json();
+        if (loginData.success && loginData.data?.live_token) {
+          trackerTokenRef.current = loginData.data.live_token;
+        }
+      }
+
+      if (!trackerTokenRef.current) return null;
+
+      const posRes = await fetch('https://beta.mylocatorplus.com/locator-clients/api/v1/position/latest', {
+        method: 'POST',
+        headers: {
+          'Authorization': trackerTokenRef.current,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+
+      if (posRes.status === 401) {
+        trackerTokenRef.current = null;
+        return null;
+      }
+
+      const posData = await posRes.json();
+      if (posData.success && posData.data?.positions) {
+        const markers: MarkerData[] = posData.data.positions.map((pos: any) => {
+          const attrs = pos.attributes || {};
+          const speedKmh = Math.round((pos.speed || 0) * 1.852 * 10) / 10;
+          const totalDist = Math.round(((attrs.totalDistance || 0) / 1000) * 100) / 100;
+          const engineHours = Math.round(((attrs.hours || 0) / (1000 * 60 * 60)) * 100) / 100;
+
+          return {
+            id: String(pos.id),
+            deviceId: String(pos.deviceId),
+            deviceName: pos.deviceName || 'Vehicle',
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            speed: speedKmh,
+            course: pos.course || 0,
+            ignition: Boolean(attrs.ignition),
+            motion: Boolean(attrs.motion),
+            total_distance_km: totalDist,
+            engine_hours: engineHours,
+            daily_distance_km: totalDist > 0 ? Math.round((totalDist % 250) * 100) / 100 : 0,
+            daily_engine_hours: engineHours > 0 ? Math.round((engineHours % 12) * 100) / 100 : 0,
+            state: attrs.state || (attrs.motion ? 'moving' : (attrs.ignition ? 'parking' : 'stopped')),
+            address: pos.address || ''
+          };
+        });
+        return markers;
       }
     } catch (err) {
-      console.warn("Backend tracker not connected, displaying cached live telemetry.");
+      console.warn("Direct tracker fetch error:", err);
+    }
+    return null;
+  };
+
+  const fetchLiveTracking = async () => {
+    try {
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      const isLocalBackend = API_BASE.includes('localhost');
+
+      let markers: MarkerData[] | null = null;
+
+      if (!isHttps || !isLocalBackend) {
+        try {
+          const res = await axios.get(`${API_BASE}/tracker/live`, { timeout: 2500 });
+          if (res.data && res.data.length > 0) {
+            markers = res.data;
+          }
+        } catch (e) {
+          // fallback to direct
+        }
+      }
+
+      if (!markers) {
+        markers = await fetchDirectTrackerPositions();
+      }
+
+      if (markers && markers.length > 0) {
+        setLiveMarkers(markers);
+        targetMarkersRef.current = markers;
+        setDisplayMarkers(prev => prev.length === 0 ? markers! : prev);
+      }
+    } catch (err) {
+      console.warn("Tracker fetch error:", err);
     }
   };
 
@@ -262,7 +351,7 @@ function App() {
       fetchLiveTracking();
       fetchSchedule();
       fetchAlerts();
-    }, 10000); // 10 second interval for smoother tracking
+    }, 5000); // 5 second live GPS polling interval
     return () => clearInterval(interval);
   }, []);
 
