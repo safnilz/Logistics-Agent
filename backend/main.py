@@ -96,6 +96,7 @@ Base.metadata.create_all(bind=engine)
 
 # --- Groq Setup ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "mock_key_for_dev")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY != "mock_key_for_dev" else None
 
 class ChatRequest(BaseModel):
@@ -444,7 +445,7 @@ ANALYTICS GUIDELINES:
 
         for _ in range(3):
             response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=GROQ_MODEL,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto"
