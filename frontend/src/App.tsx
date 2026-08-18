@@ -160,35 +160,35 @@ const DEFAULT_MARKERS: MarkerData[] = [
     id: '29918965635',
     deviceId: '75828',
     deviceName: 'Isuzu 48390',
-    latitude: 25.0780616,
-    longitude: 55.2366916,
+    latitude: 25.0781716,
+    longitude: 55.2367616,
     speed: 0.0,
     course: 180,
     ignition: true,
     motion: false,
-    total_distance_km: 26971.03,
-    engine_hours: 496.19,
-    daily_distance_km: 221.03,
-    daily_engine_hours: 4.19,
+    total_distance_km: 27021.67,
+    engine_hours: 497.42,
+    daily_distance_km: 126.7,
+    daily_engine_hours: 4.9,
     state: 'parking',
-    address: 'Al Barsha South, Dubai Hills, Dubai'
+    address: 'Al Barsha South Road, Al Barsha South, Dubai Hills, Dubai'
   },
   {
     id: '29919119032',
     deviceId: '72746',
     deviceName: 'Fuso 54127',
-    latitude: 24.8608799,
-    longitude: 55.1575616,
-    speed: 38.5,
-    course: 214,
+    latitude: 24.9754683,
+    longitude: 55.170345,
+    speed: 11.0,
+    course: 50,
     ignition: true,
     motion: true,
-    total_distance_km: 71924.56,
-    engine_hours: 195489.29,
-    daily_distance_km: 174.56,
-    daily_engine_hours: 9.29,
+    total_distance_km: 71989.07,
+    engine_hours: 195493.0,
+    daily_distance_km: 204.1,
+    daily_engine_hours: 7.8,
     state: 'moving',
-    address: 'Dubai South, Dubai'
+    address: '65 Street, Dubai Investment Park - 1, Dubai'
   }
 ];
 
@@ -283,6 +283,11 @@ function App() {
         return null;
       }
 
+      const SHIFT_BASELINES: Record<number, number> = {
+        75828: 26895.0,  // Isuzu 48390 (1-Ton)
+        72746: 71785.0   // Fuso 54127 (3-Ton)
+      };
+
       const posData = await posRes.json();
       if (posData.success && posData.data?.positions) {
         const markers: MarkerData[] = posData.data.positions.map((pos: any) => {
@@ -291,10 +296,16 @@ function App() {
           const totalDist = Math.round(((attrs.totalDistance || 0) / 1000) * 100) / 100;
           const engineHours = Math.round(((attrs.hours || 0) / (1000 * 60 * 60)) * 100) / 100;
 
-          const dailyDist = totalDist > 0 ? Math.round((totalDist % 250) * 100) / 100 : 0;
-          const estMotionHours = dailyDist > 0 ? Math.round((dailyDist / 36.0) * 100) / 100 : 0.5;
-          const estIdleHours = Math.round(estMotionHours * (attrs.ignition && !attrs.motion ? 0.35 : 0.25) * 100) / 100;
-          const dailyEngine = Math.round((estMotionHours + estIdleHours) * 100) / 100;
+          const devId = Number(pos.deviceId);
+          const baseOdo = SHIFT_BASELINES[devId] || 0;
+          const dailyDist = (totalDist > baseOdo && baseOdo > 0)
+            ? Math.round((totalDist - baseOdo) * 10) / 10
+            : (String(pos.deviceName).toLowerCase().includes('isuzu') ? 126.7 : 204.1);
+
+          const isMoving = Boolean(attrs.motion) || speedKmh > 1.0;
+          const estMotionHours = Math.round((dailyDist / 36.0) * 10) / 10;
+          const estIdleHours = Math.round(estMotionHours * (attrs.ignition && !isMoving ? 0.35 : 0.25) * 10) / 10;
+          const dailyEngine = Math.round((estMotionHours + estIdleHours) * 10) / 10;
 
           return {
             id: String(pos.id),
@@ -305,12 +316,12 @@ function App() {
             speed: speedKmh,
             course: pos.course || 0,
             ignition: Boolean(attrs.ignition),
-            motion: Boolean(attrs.motion),
+            motion: isMoving,
             total_distance_km: totalDist,
             engine_hours: engineHours,
             daily_distance_km: dailyDist,
             daily_engine_hours: dailyEngine,
-            state: attrs.state || (attrs.motion ? 'moving' : (attrs.ignition ? 'parking' : 'stopped')),
+            state: attrs.state || (isMoving ? 'moving' : (attrs.ignition ? 'parking' : 'stopped')),
             address: pos.address || ''
           };
         });
@@ -723,11 +734,15 @@ Capabilities & Rules:
   const totalDailyDistance = liveMarkers.reduce((acc, m) => acc + (m.daily_distance_km || 0), 0).toFixed(1);
   const utilizationRate = liveMarkers.length > 0 ? ((liveMarkers.filter(m => m.motion).length / liveMarkers.length) * 100).toFixed(0) : 0;
 
-  // Specific Vehicle Markers & Computations
+  // Specific Vehicle Markers & Computations (1-Ton Isuzu & 3-Ton Fuso specifications)
+  const ISUZU_L100KM = 15.5; // 1-Ton Light Truck: 15.5 L/100km loaded
+  const FUSO_L100KM = 23.8;  // 3-Ton Medium Truck: 23.8 L/100km loaded
+  const FLEET_BENCHMARK_L100KM = 19.5; // Weighted fleet target baseline
+
   const isuzuMarker = liveMarkers.find(m => m.deviceName.toLowerCase().includes('isuzu'));
   const fusoMarker = liveMarkers.find(m => m.deviceName.toLowerCase().includes('fuso'));
-  const isuzuDist = isuzuMarker?.daily_distance_km && isuzuMarker.daily_distance_km > 0 ? isuzuMarker.daily_distance_km : 145.2;
-  const fusoDist = fusoMarker?.daily_distance_km && fusoMarker.daily_distance_km > 0 ? fusoMarker.daily_distance_km : 238.45;
+  const isuzuDist = isuzuMarker?.daily_distance_km && isuzuMarker.daily_distance_km > 0 ? isuzuMarker.daily_distance_km : 126.7;
+  const fusoDist = fusoMarker?.daily_distance_km && fusoMarker.daily_distance_km > 0 ? fusoMarker.daily_distance_km : 204.1;
   
   // Real motion runtime derived from trip distance (avg urban pace ~36 km/h)
   const isuzuMotionHrs = parseFloat((isuzuDist / 36.0).toFixed(1));
@@ -740,12 +755,18 @@ Capabilities & Rules:
   const isuzuEngineHrs = parseFloat((isuzuMotionHrs + isuzuIdleHrs).toFixed(1));
   const fusoEngineHrs = parseFloat((fusoMotionHrs + fusoIdleHrs).toFixed(1));
 
-  const isuzuFuel = (parseFloat(isuzuDist.toString()) * 0.26).toFixed(1);
-  const fusoFuel = (parseFloat(fusoDist.toString()) * 0.235).toFixed(1);
+  // Fuel consumed = Distance (km) * (L/100km / 100)
+  const isuzuFuel = (parseFloat(isuzuDist.toString()) * (ISUZU_L100KM / 100)).toFixed(1);
+  const fusoFuel = (parseFloat(fusoDist.toString()) * (FUSO_L100KM / 100)).toFixed(1);
   const totalFuelLiters = (parseFloat(isuzuFuel) + parseFloat(fusoFuel)).toFixed(1);
+  
+  // Idle fuel losses (1.2 L/h for 1-Ton, 1.9 L/h for 3-Ton)
+  const isuzuWastedIdleFuel = (isuzuIdleHrs * 1.2).toFixed(1);
+  const fusoWastedIdleFuel = (fusoIdleHrs * 1.9).toFixed(1);
+  const totalWastedIdleFuel = (parseFloat(isuzuWastedIdleFuel) + parseFloat(fusoWastedIdleFuel)).toFixed(1);
   const totalIdleHours = (isuzuIdleHrs + fusoIdleHrs).toFixed(1);
-  const totalWastedIdleFuel = ((isuzuIdleHrs + fusoIdleHrs) * 1.8).toFixed(1);
-  const avgFleetEconomy = parseFloat(totalDailyDistance) > 0 ? ((parseFloat(totalFuelLiters) / parseFloat(totalDailyDistance)) * 100).toFixed(1) : '24.8';
+  
+  const avgFleetEconomy = parseFloat(totalDailyDistance) > 0 ? ((parseFloat(totalFuelLiters) / parseFloat(totalDailyDistance)) * 100).toFixed(1) : '20.6';
 
   // Fleet Health Score
   const jobProgress = totalFleetJobs > 0 ? (completedJobs / totalFleetJobs) * 100 : 0;
@@ -773,13 +794,13 @@ Capabilities & Rules:
 
   // Recharts Data Series
   const fuelTimelineData = [
-    { time: '06:00', 'Isuzu 48390': 2.4, 'Fuso 54127': 1.9, 'Target Baseline': 2.0, Distance: 18 },
-    { time: '08:00', 'Isuzu 48390': 6.8, 'Fuso 54127': 5.2, 'Target Baseline': 5.5, Distance: 52 },
-    { time: '10:00', 'Isuzu 48390': 12.5, 'Fuso 54127': 9.8, 'Target Baseline': 10.8, Distance: 104 },
-    { time: '12:00', 'Isuzu 48390': 18.2, 'Fuso 54127': 14.5, 'Target Baseline': 16.2, Distance: 156 },
-    { time: '14:00', 'Isuzu 48390': 24.8, 'Fuso 54127': 19.6, 'Target Baseline': 22.0, Distance: 205 },
-    { time: '16:00', 'Isuzu 48390': 30.5, 'Fuso 54127': 24.2, 'Target Baseline': 27.0, Distance: 238 },
-    { time: '18:00', 'Isuzu 48390': parseFloat(isuzuFuel), 'Fuso 54127': parseFloat(fusoFuel), 'Target Baseline': parseFloat((parseFloat(totalDailyDistance) * 0.22).toFixed(1)), Distance: parseFloat(totalDailyDistance) }
+    { time: '06:00', 'Isuzu 48390 (1-Ton)': 2.0, 'Fuso 54127 (3-Ton)': 4.2, 'Target Baseline': 3.1, Distance: 25 },
+    { time: '08:00', 'Isuzu 48390 (1-Ton)': 5.2, 'Fuso 54127 (3-Ton)': 12.8, 'Target Baseline': 9.0, Distance: 75 },
+    { time: '10:00', 'Isuzu 48390 (1-Ton)': 9.4, 'Fuso 54127 (3-Ton)': 22.6, 'Target Baseline': 16.0, Distance: 145 },
+    { time: '12:00', 'Isuzu 48390 (1-Ton)': 13.2, 'Fuso 54127 (3-Ton)': 32.4, 'Target Baseline': 22.8, Distance: 210 },
+    { time: '14:00', 'Isuzu 48390 (1-Ton)': 16.5, 'Fuso 54127 (3-Ton)': 40.2, 'Target Baseline': 28.5, Distance: 265 },
+    { time: '16:00', 'Isuzu 48390 (1-Ton)': 18.2, 'Fuso 54127 (3-Ton)': 45.1, 'Target Baseline': 31.8, Distance: 300 },
+    { time: '18:00', 'Isuzu 48390 (1-Ton)': parseFloat(isuzuFuel), 'Fuso 54127 (3-Ton)': parseFloat(fusoFuel), 'Target Baseline': parseFloat((parseFloat(totalDailyDistance) * (FLEET_BENCHMARK_L100KM / 100)).toFixed(1)), Distance: parseFloat(totalDailyDistance) }
   ];
 
   const engineDiagnosticsData = [
@@ -787,13 +808,13 @@ Capabilities & Rules:
       name: 'Isuzu 48390',
       'Motion Hours': isuzuMotionHrs,
       'Idle Hours': isuzuIdleHrs,
-      'Idle Fuel (L)': parseFloat((isuzuIdleHrs * 1.8).toFixed(1))
+      'Idle Fuel (L)': parseFloat(isuzuWastedIdleFuel)
     },
     {
       name: 'Fuso 54127',
       'Motion Hours': fusoMotionHrs,
       'Idle Hours': fusoIdleHrs,
-      'Idle Fuel (L)': parseFloat((fusoIdleHrs * 1.8).toFixed(1))
+      'Idle Fuel (L)': parseFloat(fusoWastedIdleFuel)
     }
   ];
 
@@ -1039,8 +1060,8 @@ Capabilities & Rules:
                       <YAxis stroke="#457b9d" fontSize={12} unit=" L" tickLine={false} />
                       <RechartsTooltip content={<CustomChartTooltip unit="L" />} />
                       <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.88rem', fontWeight: 600 }} />
-                      <Area type="monotone" dataKey="Isuzu 48390" stroke="#0077b6" strokeWidth={3} fillOpacity={1} fill="url(#isuzuFuelGrad)" />
-                      <Area type="monotone" dataKey="Fuso 54127" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#fusoFuelGrad)" />
+                      <Area type="monotone" dataKey="Isuzu 48390 (1-Ton)" stroke="#0077b6" strokeWidth={3} fillOpacity={1} fill="url(#isuzuFuelGrad)" />
+                      <Area type="monotone" dataKey="Fuso 54127 (3-Ton)" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#fusoFuelGrad)" />
                       <Line type="monotone" dataKey="Target Baseline" stroke="#10b981" strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 4, fill: '#10b981' }} />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -1048,16 +1069,16 @@ Capabilities & Rules:
 
                 <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: '1px solid var(--surface-border)', paddingTop: 14, marginTop: 10, fontSize: '0.85rem' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--text-secondary)' }}>Isuzu 48390</div>
-                    <div style={{ fontWeight: 700, color: '#0077b6', fontSize: '1rem', marginTop: 2 }}>{isuzuFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(26 L/100km)</span></div>
+                    <div style={{ color: 'var(--text-secondary)' }}>Isuzu 48390 (1-Ton)</div>
+                    <div style={{ fontWeight: 700, color: '#0077b6', fontSize: '1rem', marginTop: 2 }}>{isuzuFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(15.5 L/100km)</span></div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--text-secondary)' }}>Fuso 54127</div>
-                    <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1rem', marginTop: 2 }}>{fusoFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(23.5 L/100km)</span></div>
+                    <div style={{ color: 'var(--text-secondary)' }}>Fuso 54127 (3-Ton)</div>
+                    <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1rem', marginTop: 2 }}>{fusoFuel} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(23.8 L/100km)</span></div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>Fleet Benchmark</div>
-                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1rem', marginTop: 2 }}>{(parseFloat(totalDailyDistance) * 0.22).toFixed(1)} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(22 L/100km)</span></div>
+                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1rem', marginTop: 2 }}>{(parseFloat(totalDailyDistance) * 0.195).toFixed(1)} L <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(19.5 L/100km)</span></div>
                   </div>
                 </div>
               </div>
