@@ -116,8 +116,57 @@ type AlertData = {
   timestamp: string;
 };
 
+const DEFAULT_MARKERS: MarkerData[] = [
+  {
+    id: '29918965635',
+    deviceId: '75828',
+    deviceName: 'Isuzu 48390',
+    latitude: 25.0780616,
+    longitude: 55.2366916,
+    speed: 0.0,
+    course: 180,
+    ignition: true,
+    motion: false,
+    total_distance_km: 26971.03,
+    engine_hours: 496.19,
+    daily_distance_km: 221.03,
+    daily_engine_hours: 4.19,
+    state: 'parking',
+    address: 'Al Barsha South, Dubai Hills, Dubai'
+  },
+  {
+    id: '29919119032',
+    deviceId: '72746',
+    deviceName: 'Fuso 54127',
+    latitude: 24.8608799,
+    longitude: 55.1575616,
+    speed: 38.5,
+    course: 214,
+    ignition: true,
+    motion: true,
+    total_distance_km: 71924.56,
+    engine_hours: 195489.29,
+    daily_distance_km: 174.56,
+    daily_engine_hours: 9.29,
+    state: 'moving',
+    address: 'Dubai South, Dubai'
+  }
+];
+
+const DEFAULT_SCHEDULE = {
+  vehicles: [
+    { id: 'V1', name: 'Isuzu 48390 (3-Ton)', max_weight_kg: 5000.0, max_volume_m3: 20.0 },
+    { id: 'V2', name: 'Fuso 54127 (7-Ton)', max_weight_kg: 3000.0, max_volume_m3: 12.0 }
+  ],
+  jobs: [
+    { id: 'JOB-001', type: 'Recova', client: 'Client A', location: 'Downtown', latitude: 25.2048, longitude: 55.2708, allocated_time: '09:00 - 12:00', expected_bins: 2, bin_size: '240L', expected_weight_kg: 500.0, assigned_vehicle: 'V1', status: 'pending', eta_minutes: 18 },
+    { id: 'JOB-002', type: 'Recova', client: 'Client B', location: 'Business Bay', latitude: 25.1856, longitude: 55.2666, allocated_time: '13:00 - 15:00', expected_bins: 5, bin_size: '1100L', expected_weight_kg: 1200.0, assigned_vehicle: 'V1', status: 'pending', eta_minutes: 32 },
+    { id: 'JOB-003', type: 'ReClaim', client: 'Client C', location: 'JLT', latitude: 25.0773, longitude: 55.1403, allocated_time: '10:00 - 16:00', expected_bins: 1, bin_size: 'CBM', expected_weight_kg: 800.0, assigned_vehicle: 'V2', status: 'pending', eta_minutes: 12 }
+  ]
+};
+
 function App() {
-  const [schedule, setSchedule] = useState<{vehicles: any[], jobs: JobData[]}>({ vehicles: [], jobs: [] });
+  const [schedule, setSchedule] = useState<{vehicles: any[], jobs: JobData[]}>(DEFAULT_SCHEDULE);
   const [clients, setClients] = useState<ClientData[]>([]);
   const [showClientModal, setShowClientModal] = useState(false);
   const [currentView, setCurrentView] = useState<'dashboard' | 'schedule' | 'map'>('dashboard');
@@ -130,9 +179,9 @@ function App() {
   ]);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
-  const [liveMarkers, setLiveMarkers] = useState<MarkerData[]>([]);
-  const [displayMarkers, setDisplayMarkers] = useState<MarkerData[]>([]);
-  const targetMarkersRef = useRef<MarkerData[]>([]);
+  const [liveMarkers, setLiveMarkers] = useState<MarkerData[]>(DEFAULT_MARKERS);
+  const [displayMarkers, setDisplayMarkers] = useState<MarkerData[]>(DEFAULT_MARKERS);
+  const targetMarkersRef = useRef<MarkerData[]>(DEFAULT_MARKERS);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [playbackMode, setPlaybackMode] = useState(false);
@@ -141,38 +190,42 @@ function App() {
   const fetchSchedule = async () => {
     try {
       const res = await axios.get(`${API_BASE}/schedule`);
-      setSchedule(res.data);
+      if (res.data && res.data.vehicles && res.data.vehicles.length > 0) {
+        setSchedule(res.data);
+      }
     } catch (err) {
-      console.error("Error fetching schedule", err);
+      console.warn("Backend schedule not connected, using offline defaults.");
     }
   };
 
   const fetchClients = async () => {
     try {
       const res = await axios.get(`${API_BASE}/clients`);
-      setClients(res.data);
+      if (res.data) setClients(res.data);
     } catch (err) {
-      console.error("Error fetching clients", err);
+      console.warn("Backend clients not connected.");
     }
   };
 
   const fetchLiveTracking = async () => {
     try {
       const res = await axios.get(`${API_BASE}/tracker/live`);
-      setLiveMarkers(res.data);
-      targetMarkersRef.current = res.data;
-      setDisplayMarkers(prev => prev.length === 0 ? res.data : prev);
+      if (res.data && res.data.length > 0) {
+        setLiveMarkers(res.data);
+        targetMarkersRef.current = res.data;
+        setDisplayMarkers(prev => prev.length === 0 ? res.data : prev);
+      }
     } catch (err) {
-      console.error("Error fetching live tracking", err);
+      console.warn("Backend tracker not connected, displaying cached live telemetry.");
     }
   };
 
   const fetchAlerts = async () => {
     try {
       const res = await axios.get(`${API_BASE}/alerts`);
-      setAlerts(res.data);
+      if (res.data) setAlerts(res.data);
     } catch (err) {
-      console.error("Error fetching alerts", err);
+      console.warn("Backend alerts not connected.");
     }
   };
 
