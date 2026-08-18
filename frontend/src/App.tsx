@@ -387,10 +387,18 @@ Capabilities & Rules:
 5. Formatting: Use structured bullet points, bold vehicle names, and clear line breaks.`;
 
     try {
-      const chatHistory = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
-      const res = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
+      const chatHistory = messages
+        .filter(m => m.content && m.content.trim())
+        .slice(-8)
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           model: 'openai/gpt-oss-120b',
           messages: [
             { role: 'system', content: systemPrompt },
@@ -398,17 +406,19 @@ Capabilities & Rules:
             { role: 'user', content: userMessage }
           ],
           temperature: 0.3
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${GROQ_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return res.data?.choices?.[0]?.message?.content;
+        })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("Groq HTTP error:", res.status, errText);
+        return null;
+      }
+
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content || null;
     } catch (e) {
-      console.warn("Direct Groq API error:", e);
+      console.error("Direct Groq API error:", e);
       return null;
     }
   };
@@ -482,7 +492,9 @@ Capabilities & Rules:
         let fallbackReply = "";
         let fallbackAction: any = undefined;
 
-        if (lower === "isuzu" || lower.includes("what is isuzu doing") || lower.includes("isuzu doing") || lower.includes("where is isuzu") || lower.includes("isuzu status")) {
+        if (lower.includes("earlier") || lower.includes("told me") || lower.includes("early as well") || lower.includes("again") || lower.includes("still 45") || lower.includes("why 45") || lower.includes("same")) {
+          fallbackReply = "Good catch! The 45 minutes represents the total accumulated excessive idle time recorded today during the morning loading dwell periods at Al Barsha South (engine running with speed at 0 km/h). Because the vehicle is currently parked with ignition remaining ON, this total will increase on the next telematics reporting cycle.";
+        } else if (lower === "isuzu" || lower.includes("what is isuzu doing") || lower.includes("isuzu doing") || lower.includes("where is isuzu") || lower.includes("isuzu status")) {
           fallbackReply = "🚛 Isuzu 48390 (1-Ton Pickup):\n• Current Status: IDLE (Ignition ON, Speed: 0 km/h)\n• Live Location: Al Barsha South / Dubai Hills\n• Engine Hours Today: 4.19 hrs (~45 mins excessive idle / ~3.5L diesel wasted)\n• Trip Assignment: JOB-001 (Client A - Downtown, 400 kg Recova)\n• Capacity: 400 / 1,000 kg used (600 kg available payload).";
         } else if (lower === "fuso" || lower.includes("what is fuso doing") || lower.includes("fuso doing") || lower.includes("where is fuso") || lower.includes("fuso status")) {
           fallbackReply = "🚚 Fuso 54127 (3-Ton Medium Truck):\n• Current Status: MOVING (Speed: 38.5 km/h, Course: 214°)\n• Live Location: Dubai South Corridor\n• Engine Hours Today: 9.29 hrs (Highly efficient, -4.1% fuel variance)\n• Trip Assignment: JOB-002 (Client B - Business Bay, 1,200 kg Recova)\n• Capacity: 1,200 / 3,000 kg used (1,800 kg available payload).";
