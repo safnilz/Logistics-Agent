@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   Bot, Send, Mic, Map as MapIcon, 
   LayoutDashboard, Truck, Settings, Bell, Check, X,
-  Users, Plus, Clock, Trash2, MapPin, Activity, Zap, ShieldCheck, PlayCircle,
+  Users, Plus, Clock, Trash2, MapPin, Activity, ShieldCheck, PlayCircle,
   Flame, Scale, Percent, Route
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -39,7 +39,7 @@ const truckIcon = L.divIcon({
   iconAnchor: [16, 16]
 });
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000/api';
 
 type Message = {
   id: string;
@@ -344,38 +344,6 @@ function App() {
     return null;
   };
 
-  // Economics Calculations
-  const economicsData = liveMarkers.map(m => {
-    const vId = getVehicleMapping(m.deviceName);
-    const vJobs = schedule.jobs.filter(j => j.assigned_vehicle === vId && j.status !== 'completed');
-    const currentLoad = vJobs.reduce((sum, j) => sum + j.expected_weight_kg, 0);
-
-    const is3Ton = m.deviceName.toLowerCase().includes('isuzu');
-    const baselineRate = is3Ton ? 0.25 : 0.15; // 25L/100km or 15L/100km
-    const baselineFuel = (m.daily_distance_km || 0) * baselineRate;
-    
-    // Hardcode a variance for the demo to match the AI logic exactly
-    let idlePenalty = 0;
-    if (is3Ton) idlePenalty = baselineFuel * 0.12; // +12% variance for Isuzu
-    else idlePenalty = -(baselineFuel * 0.04); // -4% variance for Fuso
-    
-    const actualFuel = baselineFuel + idlePenalty;
-    const variance = baselineFuel > 0 ? ((actualFuel - baselineFuel) / baselineFuel) * 100 : 0;
-    const cost = actualFuel * 3.03; // AED
-    const costPerKg = currentLoad > 0 ? (cost / currentLoad) : 0;
-    
-    return {
-      deviceName: m.deviceName,
-      distance: (m.daily_distance_km || 0).toFixed(1),
-      currentLoad: currentLoad,
-      baselineFuel: baselineFuel.toFixed(1),
-      actualFuel: actualFuel.toFixed(1),
-      variance: variance.toFixed(1),
-      cost: cost.toFixed(2),
-      costPerKg: costPerKg.toFixed(2)
-    };
-  });
-
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
@@ -597,7 +565,7 @@ function App() {
                           </div>
                         ) : (
                           <div style={{ marginTop: 8, fontSize: '0.8rem', color: msg.action.status === 'confirmed' ? 'var(--success)' : 'var(--danger)' }}>
-                            {msg.action.status.toUpperCase()}
+                            {msg.action.status ? msg.action.status.toUpperCase() : ''}
                           </div>
                         )}
                       </div>
