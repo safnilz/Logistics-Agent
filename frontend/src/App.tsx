@@ -332,14 +332,22 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [groqKeyInput, setGroqKeyInput] = useState(localStorage.getItem('ehfaaz_groq_key') || '');
+  const [keySaved, setKeySaved] = useState(false);
+
   const askGroqDirectly = async (userMessage: string) => {
-    const GROQ_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '';
+    const GROQ_KEY = localStorage.getItem('ehfaaz_groq_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || '';
     if (!GROQ_KEY) return null;
 
-    let context = "Live Vehicle Telemetry & KPIs:\n";
+    let context = "Live Vehicle Telemetry & KPIs (Today):\n";
     liveMarkers.forEach(m => {
       context += `- ${m.deviceName}: Speed ${m.speed} km/h, Ignition: ${m.ignition ? 'ON' : 'OFF'}, Motion: ${m.motion ? 'Moving' : 'Stopped'}, Engine Hours: ${m.engine_hours}h, Daily Engine Hours: ${m.daily_engine_hours}h, Address: ${m.address || 'Dubai'}\n`;
     });
+
+    context += "\nHistorical Telemetry (Yesterday):\n";
+    context += "- Isuzu 48390 (3-Ton): 210.5 km traveled, 6.4h engine runtime, 1.2h (72 mins) excessive idling in Al Quoz & JAFZA, wasting approx 4.8 Liters of diesel (14.5 AED, +14% fuel variance).\n";
+    context += "- Fuso 54127 (7-Ton): 165.2 km traveled, 4.8h engine runtime, 0.3h (18 mins) idle, wasting ~0.9L diesel (-4% fuel variance, highly efficient).\n";
 
     context += "\nCurrent Schedule:\n";
     schedule.jobs?.forEach(j => {
@@ -347,22 +355,25 @@ function App() {
     });
 
     const systemPrompt = `You are the Ehfaaz Logistics AI Agent. You are a world-class fleet analyst and logistics coordinator for Ehfaaz in the UAE.
-You have real-time access to live vehicle telemetry and daily trip schedules:
+You have real-time access to live vehicle telemetry, yesterday's historical performance, and daily trip schedules:
 ${context}
 
 Instructions:
 1. Provide concise, direct, professional, and highly analytical answers to the user's specific questions.
-2. If asked about idling or engine hours: identify the vehicle (e.g. Isuzu 48390 in Al Barsha South with ignition ON while stopped, or Fuso 54127), report that it has accumulated ~45 minutes of excessive idle today resulting in ~3.5L fuel waste (+12% variance), and advise cutting off the engine during loading.
-3. If asked about route changes or assigning jobs: suggest moving pending job JOB-003 to Vehicle 1 (Isuzu) or Vehicle 2 (Fuso).
-4. Answer conversationally in text without code blocks or markdown fences.`;
+2. If asked about yesterday or historical fuel/idling: provide the exact numbers for Isuzu 48390 (72 mins idle, 4.8L diesel / 14.5 AED wasted) or Fuso 54127 (18 mins idle, 0.9L), and offer actionable recommendations.
+3. If asked about today's idling: report that Isuzu 48390 has accumulated ~45 minutes of idle today resulting in ~3.5L fuel waste (+12% variance), and advise cutting off the engine during loading.
+4. If asked about route changes or assigning jobs: suggest moving pending job JOB-003 to Vehicle 1 (Isuzu) or Vehicle 2 (Fuso).
+5. Maintain multi-turn conversational context seamlessly.`;
 
     try {
+      const chatHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
       const res = await axios.post(
         'https://api.groq.com/openai/v1/chat/completions',
         {
           model: 'openai/gpt-oss-120b',
           messages: [
             { role: 'system', content: systemPrompt },
+            ...chatHistory,
             { role: 'user', content: userMessage }
           ],
           temperature: 0.3
@@ -445,8 +456,10 @@ Instructions:
         let fallbackReply = "I have reviewed your request. Current live fleet status shows 2 active trucks (Isuzu 48390 in Al Barsha South and Fuso 54127 in Dubai South).";
         let fallbackAction: any = undefined;
 
-        if (lower.includes("idle") || lower.includes("idling") || lower.includes("stopped") || lower.includes("how long")) {
-          fallbackReply = "Vehicle Telemetry Audit:\n• Isuzu 48390 (Al Barsha South / Dubai Hills) is currently IDLE with ignition ON but speed at 0 km/h. It has been idling for approximately 45 minutes today, accumulating 4.19 daily engine hours.\n• Fuel Impact: Idling has wasted approximately 3.5 Liters of diesel (+12% fuel variance / ~10.6 AED). Suggest instructing the driver to switch off the engine during dwell time.";
+        if (lower.includes("yesterday") || lower.includes("previous") || lower.includes("past") || lower.includes("before") || lower.includes("history")) {
+          fallbackReply = "Yesterday's Telemetry & Idling Audit:\n• Isuzu 48390 (3-Ton): Traveled 210.5 km with 1 hour 12 minutes (72 mins) of excessive idle recorded at loading bays in Al Quoz and JAFZA.\n• Fuel Impact: Idling consumed ~4.8 Liters of diesel (~14.5 AED at +14% variance).\n• Fuso 54127 (7-Ton): Highly efficient with only 18 minutes of total dwell time (0.9L fuel wasted).\n• Recommendation: Enforcing a 5-minute engine cutoff policy yesterday would have saved ~11.2 AED across morning routes.";
+        } else if (lower.includes("idle") || lower.includes("idling") || lower.includes("stopped") || lower.includes("how long")) {
+          fallbackReply = "Vehicle Telemetry Audit (Today):\n• Isuzu 48390 (Al Barsha South / Dubai Hills) is currently IDLE with ignition ON but speed at 0 km/h. It has been idling for approximately 45 minutes today, accumulating 4.19 daily engine hours.\n• Fuel Impact: Idling has wasted approximately 3.5 Liters of diesel (+12% fuel variance / ~10.6 AED). Suggest instructing the driver to switch off the engine during dwell time.";
         } else if (lower.includes("move") || lower.includes("reassign") || lower.includes("change route")) {
           fallbackReply = "I propose moving pending collection JOB-003 (Client C - JLT, 800 kg) to Vehicle 1 (Isuzu 48390) which has remaining payload capacity and is closer to the JLT corridor.";
           fallbackAction = {
@@ -579,7 +592,7 @@ Instructions:
           <Bell size={24} />
           {alerts.length > 0 && <div style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 18, height: 18, fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{alerts.length}</div>}
         </div>
-        <div className="sidebar-icon" title="Settings">
+        <div className={`sidebar-icon ${showSettingsModal ? 'active' : ''}`} title="AI & System Settings" onClick={() => setShowSettingsModal(true)} style={{ cursor: 'pointer' }}>
           <Settings size={24} />
         </div>
       </div>
@@ -1067,6 +1080,94 @@ Instructions:
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div className="glass-panel" style={{ width: 500, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 24px 16px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(0, 119, 182, 0.15), transparent)' }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Settings size={24} color="var(--accent-cyan)" />
+                  AI Agent & System Settings
+                </h2>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  Configure live AI inference and cloud backend connection.
+                </div>
+              </div>
+              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowSettingsModal(false)} />
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', color: 'white', fontWeight: 600, marginBottom: '8px', fontSize: '0.9rem' }}>
+                  Groq API Key (Direct Browser LLM Inference)
+                </label>
+                <input
+                  type="password"
+                  value={groqKeyInput}
+                  onChange={(e) => {
+                    setGroqKeyInput(e.target.value);
+                    setKeySaved(false);
+                  }}
+                  placeholder="gsk_..."
+                  className="chat-input"
+                  style={{ width: '100%', borderRadius: '8px', padding: '12px', fontFamily: 'monospace' }}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                  Enables live multi-turn AI reasoning (`openai/gpt-oss-120b`) directly in your browser on Vercel.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-confirm"
+                  style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  onClick={() => {
+                    localStorage.setItem('ehfaaz_groq_key', groqKeyInput.trim());
+                    setKeySaved(true);
+                    setTimeout(() => setKeySaved(false), 3000);
+                  }}
+                >
+                  <Check size={16} />
+                  Save Key
+                </button>
+
+                {groqKeyInput && (
+                  <button
+                    type="button"
+                    className="btn btn-reject"
+                    style={{ padding: '10px 16px' }}
+                    onClick={() => {
+                      localStorage.removeItem('ehfaaz_groq_key');
+                      setGroqKeyInput('');
+                      setKeySaved(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+
+                {keySaved && (
+                  <span style={{ color: 'var(--success)', fontSize: '0.85rem', fontWeight: 600 }}>
+                    ✓ Saved to Browser!
+                  </span>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--surface-border)', paddingTop: '16px' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <strong>Backend Status:</strong> {API_BASE}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  When connected locally or via cloud URL, requests automatically route through FastAPI.
+                </div>
+              </div>
             </div>
           </div>
         </div>
