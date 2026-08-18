@@ -1,0 +1,50 @@
+{
+  "vehicles": [
+    {
+      "id": "V1",
+      "name": "Truck 1",
+      "max_weight_kg": 5000,
+      "max_volume_m3": 20,
+      "current_load_kg": 0
+    },
+    {
+      "id": "V2",
+      "name": "Truck 2",
+      "max_weight_kg": 3000,
+      "max_volume_m3": 12,
+      "current_load_kg": 0
+    }
+  ],
+  "jobs": [
+    {
+      "id": "JOB-001",
+      "type": "Recova",
+      "client": "Client A",
+      "location": "Downtown",
+      "expected_weight_kg": 500,
+      "assigned_vehicle": "V1",
+      "status": "pending",
+      "locked": false
+    },
+    {
+      "id": "JOB-002",
+      "type": "Recova",
+      "client": "Client B",
+      "location": "Business Bay",
+      "expected_weight_kg": 1200,
+      "assigned_vehicle": "V1",
+      "status": "pending",
+      "locked": false
+    },
+    {
+      "id": "JOB-003",
+      "type": "ReClaim",
+      "client": "Client C",
+      "location": "JLT",
+      "expected_weight_kg": 800,
+      "assigned_vehicle": "V1",
+      "status": "assigned",
+      "locked": false
+    }
+  ]
+}
