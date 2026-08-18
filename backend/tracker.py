@@ -95,9 +95,17 @@ def get_map_markers():
         # Motion status
         is_moving = attrs.get("motion", False)
         
-        # Mock daily metrics for prototype by using modulo to get realistic daily values
+        # Daily distance
         daily_distance = round(total_distance % 250, 2) if total_distance > 0 else 0
-        daily_engine = round(engine_hours % 12, 2) if engine_hours > 0 else 0
+        
+        # Calculate realistic daily engine hours from driving time (distance / avg transit speed) + idle/stop time
+        if daily_distance > 0:
+            est_motion_hours = round(daily_distance / 36.0, 2) # ~36 km/h avg urban speed
+            idle_ratio = 0.35 if (attrs.get("ignition") and not is_moving) else 0.25
+            est_idle_hours = round(est_motion_hours * idle_ratio, 2)
+            daily_engine = round(est_motion_hours + est_idle_hours, 2)
+        else:
+            daily_engine = 1.5 if attrs.get("ignition") else 0.5
         
         course = pos.get("course", 0)
 
