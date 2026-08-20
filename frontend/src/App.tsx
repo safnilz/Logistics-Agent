@@ -283,6 +283,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState<JobData | null>(null);
+  const [showClientFormModal, setShowClientFormModal] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientData | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedJobClientId, setSelectedJobClientId] = useState('');
@@ -517,7 +518,8 @@ function App() {
       setClients(prev => [newClient, ...prev]);
     }
 
-    (e.target as HTMLFormElement).reset();
+    setShowClientFormModal(false);
+    setEditingClient(null);
   };
 
   const handleDeleteClient = async (clientId: string, clientName: string) => {
@@ -1562,8 +1564,22 @@ Capabilities & Rules:
                       Real-time speed, load allocation, next stop ETA & engine runtime
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(0, 119, 182, 0.08)', padding: '6px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                    2 Units Monitored
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-confirm" 
+                      onClick={handleOpenAddJob} 
+                      style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5, borderRadius: 8, fontWeight: 700 }}
+                    >
+                      <Plus size={14} /> Add Stop
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setCurrentView('schedule')} 
+                      style={{ background: 'rgba(0, 119, 182, 0.15)', color: 'var(--accent-cyan)', border: '1px solid rgba(0, 119, 182, 0.4)', padding: '6px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                      <Truck size={14} /> Edit Full Schedule
+                    </button>
                   </div>
                 </div>
 
@@ -2268,13 +2284,13 @@ Capabilities & Rules:
         </div>
       )}
 
-      {/* Client Registry Modal with Full CRUD (Edit, Delete, Update, Search) */}
+      {/* Client Registry Modal (List & Search) */}
       {showClientModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
-          <div className="glass-panel" style={{ width: 620, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+          <div className="glass-panel" style={{ width: 680, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
             
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(2, 132, 199, 0.15), rgba(124, 58, 237, 0.08), transparent)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(2, 132, 199, 0.15), rgba(124, 58, 237, 0.08), transparent)' }}>
               <div>
                 <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem' }}>
                   <Users size={22} color="var(--accent-cyan)" />
@@ -2284,7 +2300,17 @@ Capabilities & Rules:
                   Manage registered client locations, service profiles & geofence parameters.
                 </div>
               </div>
-              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => { setShowClientModal(false); setEditingClient(null); }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-confirm" 
+                  onClick={() => { setEditingClient(null); setShowClientFormModal(true); }}
+                  style={{ padding: '7px 14px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6, borderRadius: 8, fontWeight: 700 }}
+                >
+                  <Plus size={16} /> Register Client
+                </button>
+                <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowClientModal(false)} />
+              </div>
             </div>
 
             {/* Search and Filters Bar */}
@@ -2308,19 +2334,18 @@ Capabilities & Rules:
             <div style={{ padding: '20px 24px', overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
               
               {/* Existing Clients List */}
-              <div style={{ display: 'grid', gap: '10px', marginBottom: '28px' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
                 {clients
                   .filter(c => !clientSearch || c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.location.toLowerCase().includes(clientSearch.toLowerCase()) || c.default_job_type.toLowerCase().includes(clientSearch.toLowerCase()))
                   .map(c => {
                     const isRecova = c.default_job_type === 'Recova';
-                    const isSelectedForEdit = editingClient?.id === c.id;
 
                     return (
                       <div 
                         key={c.id} 
                         style={{ 
-                          background: isSelectedForEdit ? 'rgba(2, 132, 199, 0.12)' : 'rgba(0,0,0,0.35)', 
-                          border: isSelectedForEdit ? '1px solid var(--accent-cyan)' : '1px solid rgba(255,255,255,0.06)', 
+                          background: 'rgba(0,0,0,0.35)', 
+                          border: '1px solid rgba(255,255,255,0.06)', 
                           padding: '14px 16px', 
                           borderRadius: '10px', 
                           display: 'flex', 
@@ -2337,7 +2362,7 @@ Capabilities & Rules:
                             </span>
                             {c.radius && (
                               <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>
-                                ⭕ {c.radius}m
+                                ⭕ {c.radius}m radius
                               </span>
                             )}
                           </div>
@@ -2350,28 +2375,29 @@ Capabilities & Rules:
                         </div>
 
                         {/* Action Buttons: Edit and Delete */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 14 }}>
                           <button 
                             type="button" 
                             onClick={() => {
                               setEditingClient(c);
+                              setShowClientFormModal(true);
                             }}
                             title="Edit Client" 
                             style={{ 
-                              background: isSelectedForEdit ? 'var(--accent-cyan)' : 'rgba(2, 132, 199, 0.15)', 
-                              color: isSelectedForEdit ? '#000' : 'var(--accent-cyan)', 
-                              border: 'none', 
-                              padding: '6px 10px', 
+                              background: 'rgba(2, 132, 199, 0.15)', 
+                              color: 'var(--accent-cyan)', 
+                              border: '1px solid rgba(2, 132, 199, 0.4)', 
+                              padding: '7px 14px', 
                               borderRadius: 6, 
                               cursor: 'pointer', 
                               display: 'flex', 
                               alignItems: 'center', 
-                              gap: 4, 
-                              fontSize: '0.78rem', 
-                              fontWeight: 600 
+                              gap: 5, 
+                              fontSize: '0.82rem', 
+                              fontWeight: 700 
                             }}
                           >
-                            <Edit2 size={13} /> Edit
+                            <Edit2 size={14} /> Edit
                           </button>
                           <button 
                             type="button" 
@@ -2380,18 +2406,18 @@ Capabilities & Rules:
                             style={{ 
                               background: 'rgba(230, 57, 70, 0.15)', 
                               color: 'var(--danger)', 
-                              border: 'none', 
-                              padding: '6px 10px', 
+                              border: '1px solid rgba(230, 57, 70, 0.4)', 
+                              padding: '7px 12px', 
                               borderRadius: 6, 
                               cursor: 'pointer', 
                               display: 'flex', 
                               alignItems: 'center', 
-                              gap: 4, 
-                              fontSize: '0.78rem', 
+                              gap: 5, 
+                              fontSize: '0.82rem', 
                               fontWeight: 600 
                             }}
                           >
-                            <Trash2 size={13} /> Delete
+                            <Trash2 size={14} /> Delete
                           </button>
                         </div>
                       </div>
@@ -2399,165 +2425,173 @@ Capabilities & Rules:
                   })}
                 {clients.length === 0 && <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>No registered clients found.</div>}
               </div>
-
-              {/* Add New Client / Edit Client Form */}
-              <form 
-                key={editingClient ? `edit-${editingClient.id}` : 'create-new'}
-                onSubmit={handleSaveClient} 
-                style={{ 
-                  background: editingClient ? 'rgba(2, 132, 199, 0.08)' : 'rgba(255,255,255,0.03)', 
-                  padding: '20px', 
-                  borderRadius: '12px', 
-                  border: editingClient ? '1px solid var(--accent-cyan)' : '1px solid var(--surface-border)' 
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h4 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
-                    {editingClient ? <Edit2 size={18} color="var(--accent-cyan)" /> : <Plus size={18} color="var(--accent-cyan)" />}
-                    {editingClient ? `Edit Client: ${editingClient.name}` : 'Register New Client'}
-                  </h4>
-                  {editingClient && (
-                    <button 
-                      type="button" 
-                      onClick={() => setEditingClient(null)} 
-                      style={{ background: 'transparent', border: '1px solid var(--surface-border)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: 4, fontSize: '0.75rem', cursor: 'pointer' }}
-                    >
-                      Cancel Edit
-                    </button>
-                  )}
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Client / Facility Name</label>
-                    <input 
-                      name="name" 
-                      defaultValue={editingClient?.name || ''} 
-                      className="chat-input" 
-                      placeholder="e.g. Sephora Dubai Mall" 
-                      required 
-                      style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                    />
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Area / Location</label>
-                      <input 
-                        name="location" 
-                        defaultValue={editingClient?.location || ''} 
-                        className="chat-input" 
-                        placeholder="e.g. Downtown Dubai" 
-                        required 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Service Type</label>
-                      <select 
-                        name="type" 
-                        defaultValue={editingClient?.default_job_type || 'Recova'} 
-                        className="chat-input" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
-                      >
-                        <option value="Recova">Recova</option>
-                        <option value="ReClaim">ReClaim</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Latitude</label>
-                      <input 
-                        name="latitude" 
-                        type="number" 
-                        step="any" 
-                        defaultValue={editingClient?.latitude || ''} 
-                        className="chat-input" 
-                        placeholder="e.g. 25.1972" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Longitude</label>
-                      <input 
-                        name="longitude" 
-                        type="number" 
-                        step="any" 
-                        defaultValue={editingClient?.longitude || ''} 
-                        className="chat-input" 
-                        placeholder="e.g. 55.2797" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Geofence (m)</label>
-                      <input 
-                        name="radius" 
-                        type="number" 
-                        step="any" 
-                        defaultValue={editingClient?.radius || 150} 
-                        className="chat-input" 
-                        placeholder="150" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 2fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bins</label>
-                      <input 
-                        name="expected_bins" 
-                        type="number" 
-                        defaultValue={editingClient?.expected_bins || 2} 
-                        className="chat-input" 
-                        placeholder="2" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bin Size</label>
-                      <input 
-                        name="bin_size" 
-                        defaultValue={editingClient?.bin_size || '240L'} 
-                        className="chat-input" 
-                        placeholder="240L / 1100L / CBM" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Time Window</label>
-                      <input 
-                        name="allocated_time" 
-                        defaultValue={editingClient?.allocated_time || '09:00 - 17:00'} 
-                        className="chat-input" 
-                        placeholder="09:00 - 17:00" 
-                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    className="btn btn-confirm" 
-                    style={{ width: '100%', padding: '12px', marginTop: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}
-                  >
-                    <Check size={18} />
-                    {editingClient ? 'Update Client Record' : 'Save New Client to Registry'}
-                  </button>
-                </div>
-              </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Client Form Modal (Create or Edit) */}
+      {showClientFormModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2500, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+          <div className="glass-panel" style={{ width: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.4)', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(2, 132, 199, 0.18), transparent)' }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.2rem' }}>
+                  {editingClient ? <Edit2 size={20} color="var(--accent-cyan)" /> : <Plus size={20} color="var(--accent-cyan)" />}
+                  {editingClient ? `Edit Client: ${editingClient.name}` : 'Register New Client'}
+                </h2>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                  {editingClient ? 'Update location, coordinates, and default service profile.' : 'Add a new customer collection point to Ehfaaz registry.'}
+                </div>
+              </div>
+              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => { setShowClientFormModal(false); setEditingClient(null); }} />
+            </div>
+
+            <form 
+              key={editingClient ? `edit-${editingClient.id}` : 'create-new'}
+              onSubmit={handleSaveClient} 
+              style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Client / Facility Name</label>
+                <input 
+                  name="name" 
+                  defaultValue={editingClient?.name || ''} 
+                  className="chat-input" 
+                  placeholder="e.g. Sephora Dubai Mall" 
+                  required 
+                  style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                />
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Area / Location</label>
+                  <input 
+                    name="location" 
+                    defaultValue={editingClient?.location || ''} 
+                    className="chat-input" 
+                    placeholder="e.g. Downtown Dubai" 
+                    required 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Service Type</label>
+                  <select 
+                    name="type" 
+                    defaultValue={editingClient?.default_job_type || 'Recova'} 
+                    className="chat-input" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
+                  >
+                    <option value="Recova">Recova (Blue)</option>
+                    <option value="ReClaim">ReClaim (Purple)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Latitude</label>
+                  <input 
+                    name="latitude" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingClient?.latitude || ''} 
+                    className="chat-input" 
+                    placeholder="e.g. 25.1972" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Longitude</label>
+                  <input 
+                    name="longitude" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingClient?.longitude || ''} 
+                    className="chat-input" 
+                    placeholder="e.g. 55.2797" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Geofence (m)</label>
+                  <input 
+                    name="radius" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingClient?.radius || 150} 
+                    className="chat-input" 
+                    placeholder="150" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 2fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Bins</label>
+                  <input 
+                    name="expected_bins" 
+                    type="number" 
+                    defaultValue={editingClient?.expected_bins || 2} 
+                    className="chat-input" 
+                    placeholder="2" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Bin Size</label>
+                  <input 
+                    name="bin_size" 
+                    defaultValue={editingClient?.bin_size || '240L'} 
+                    className="chat-input" 
+                    placeholder="240L / 1100L / CBM" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block', fontWeight: 600 }}>Time Window</label>
+                  <input 
+                    name="allocated_time" 
+                    defaultValue={editingClient?.allocated_time || '09:00 - 17:00'} 
+                    className="chat-input" 
+                    placeholder="09:00 - 17:00" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-confirm" 
+                  style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}
+                >
+                  <Check size={18} />
+                  {editingClient ? 'Update Client Record' : 'Save Client to Registry'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setShowClientFormModal(false); setEditingClient(null); }}
+                  className="btn btn-reject" 
+                  style={{ padding: '12px 18px', fontSize: '0.9rem' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Daily Trip Schedule Stop Add / Edit Modal */}
       {showJobModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
-          <div className="glass-panel" style={{ width: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+          <div className="glass-panel" style={{ width: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.4)', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(0, 119, 182, 0.15), transparent)' }}>
               <div>
