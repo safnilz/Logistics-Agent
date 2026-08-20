@@ -27,6 +27,7 @@ class Client(Base):
     location = Column(String)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    radius = Column(Float, nullable=True)
     allocated_time = Column(String, nullable=True)
     expected_bins = Column(Integer, nullable=True)
     bin_size = Column(String, nullable=True)

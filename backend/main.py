@@ -10,7 +10,7 @@ import math
 from datetime import datetime
 
 from database import engine, Base, get_db, Vehicle, Job, Client, Alert, SessionLocal
-from tracker import get_map_markers
+from tracker import get_map_markers, get_locator_pois
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -251,12 +251,18 @@ def get_live_tracker():
     """Returns live vehicle positions from Locator API."""
     return get_map_markers()
 
+@app.get("/api/tracker/pois")
+def get_tracker_pois():
+    """Returns live POIs / Geofences saved in Locator."""
+    return get_locator_pois()
+
 class ClientCreateRequest(BaseModel):
     name: str
     default_job_type: str
     location: str
     latitude: float = None
     longitude: float = None
+    radius: float = 150.0
     allocated_time: str = None
     expected_bins: int = None
     bin_size: str = None
@@ -265,14 +271,34 @@ class ClientCreateRequest(BaseModel):
 def get_clients(db: Session = Depends(get_db)):
     """Returns registered clients."""
     clients = db.query(Client).all()
-    return [{"id": c.id, "name": c.name, "default_job_type": c.default_job_type, "location": c.location, "latitude": c.latitude, "longitude": c.longitude, "allocated_time": c.allocated_time, "expected_bins": c.expected_bins, "bin_size": c.bin_size} for c in clients]
+    if not clients:
+        # Try fetching from Locator POIs if database is empty
+        pois = get_locator_pois()
+        for p in pois:
+            c = Client(
+                id=p["id"],
+                name=p["name"],
+                default_job_type=p.get("default_job_type", "Recova"),
+                location=p.get("location", p["name"]),
+                latitude=p.get("latitude"),
+                longitude=p.get("longitude"),
+                radius=p.get("radius", 150.0),
+                allocated_time=p.get("allocated_time", "09:00 - 17:00"),
+                expected_bins=p.get("expected_bins", 2),
+                bin_size=p.get("bin_size", "240L")
+            )
+            db.add(c)
+        db.commit()
+        clients = db.query(Client).all()
+
+    return [{"id": c.id, "name": c.name, "default_job_type": c.default_job_type, "location": c.location, "latitude": c.latitude, "longitude": c.longitude, "radius": c.radius or 150.0, "allocated_time": c.allocated_time, "expected_bins": c.expected_bins, "bin_size": c.bin_size} for c in clients]
 
 @app.post("/api/clients")
 def create_client_endpoint(req: ClientCreateRequest, db: Session = Depends(get_db)):
     """Register a new client."""
     import uuid
     new_id = f"C-{str(uuid.uuid4())[:4].upper()}"
-    new_client = Client(id=new_id, name=req.name, default_job_type=req.default_job_type, location=req.location, latitude=req.latitude, longitude=req.longitude, allocated_time=req.allocated_time, expected_bins=req.expected_bins, bin_size=req.bin_size)
+    new_client = Client(id=new_id, name=req.name, default_job_type=req.default_job_type, location=req.location, latitude=req.latitude, longitude=req.longitude, radius=req.radius or 150.0, allocated_time=req.allocated_time, expected_bins=req.expected_bins, bin_size=req.bin_size)
     db.add(new_client)
     db.commit()
     return {"status": "Success", "id": new_id}

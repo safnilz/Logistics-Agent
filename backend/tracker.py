@@ -135,3 +135,57 @@ def get_map_markers():
             "address": pos.get("address", "")
         })
     return markers
+
+import html
+import re
+
+_cached_pois = []
+
+def get_locator_pois():
+    """Fetches saved POIs / Geofences from Locator login session."""
+    global _cached_pois
+    if _cached_pois:
+        return _cached_pois
+
+    try:
+        response = requests.post(LOGIN_URL, json={
+            "user_name": USERNAME,
+            "user_password": PASSWORD,
+            "isAdmin": "customer"
+        }, timeout=8)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("success") and "geofences" in data.get("data", {}):
+            geofences = data["data"]["geofences"]
+            pois = []
+            for g in geofences:
+                name = html.unescape(g.get("name", ""))
+                area = g.get("area", "")
+                match = re.search(r"CIRCLE\s*\(\s*([\d\.-]+)\s+([\d\.-]+)\s*,\s*([\d\.-]+)\s*\)", area)
+                if match:
+                    lat = float(match.group(1))
+                    lon = float(match.group(2))
+                    radius = float(match.group(3))
+                    job_type = "Recova"
+                    if any(w in name.lower() for w in ["farm", "facility", "laing", "bustanica", "shobha"]):
+                        job_type = "ReClaim"
+                    pois.append({
+                        "id": f"POI-{g['id']}",
+                        "name": name,
+                        "default_job_type": job_type,
+                        "location": name,
+                        "latitude": round(lat, 6),
+                        "longitude": round(lon, 6),
+                        "radius": round(radius, 1),
+                        "allocated_time": "09:00 - 17:00",
+                        "expected_bins": 2 if job_type == "Recova" else 1,
+                        "bin_size": "240L" if job_type == "Recova" else "1100L"
+                    })
+            if pois:
+                _cached_pois = pois
+                return _cached_pois
+    except Exception as e:
+        logger.error(f"Error fetching Locator POIs: {e}")
+
+    return _cached_pois
+

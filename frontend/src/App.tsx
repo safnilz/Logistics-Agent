@@ -22,7 +22,7 @@ import {
   Legend,
   ComposedChart
 } from 'recharts';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 
 // Fix for default marker icons
@@ -44,6 +44,32 @@ const greenIcon = new L.Icon({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
+
+// Dynamic POI / Client Location Icon Generator
+const createPoiIcon = (client: ClientData) => {
+  const isRecova = client.default_job_type === 'Recova';
+  const color = isRecova ? '#0284c7' : '#7c3aed';
+  const cleanName = client.name.replace(/&#39;/g, "'");
+
+  return L.divIcon({
+    className: 'custom-poi-marker',
+    html: `
+      <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+        <div style="background: ${color}; color: white; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35); border: 2px solid #ffffff; transition: transform 0.2s;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.88); color: #f8fafc; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 8px; margin-top: 3px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(255,255,255,0.25); text-shadow: 0 1px 2px rgba(0,0,0,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
+          ${cleanName}
+        </div>
+      </div>
+    `,
+    iconSize: [120, 50],
+    iconAnchor: [60, 13]
+  });
+};
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000/api';
 
@@ -126,10 +152,34 @@ type ClientData = {
   location: string;
   latitude?: number;
   longitude?: number;
+  radius?: number;
   allocated_time?: string;
   expected_bins?: number;
   bin_size?: string;
 };
+
+const DEFAULT_CLIENTS: ClientData[] = [
+  { id: "POI-42399", name: "Ehfaaz Facility", default_job_type: "ReClaim", location: "Al Barsha South", latitude: 25.078304, longitude: 55.236453, radius: 125.0, allocated_time: "08:00 - 18:00", expected_bins: 5, bin_size: "1100L" },
+  { id: "POI-42396", name: "Eurofragance", default_job_type: "Recova", location: "Dubai Science Park", latitude: 25.076491, longitude: 55.24252, radius: 150.0, allocated_time: "09:00 - 12:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42369", name: "Bloomberg LP - Dubai", default_job_type: "Recova", location: "DIFC / Downtown", latitude: 25.21236, longitude: 55.281437, radius: 150.0, allocated_time: "09:00 - 12:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-43016", name: "Sephora Dubai Mall", default_job_type: "Recova", location: "Downtown Dubai", latitude: 25.197229, longitude: 55.279747, radius: 150.0, allocated_time: "10:00 - 13:00", expected_bins: 3, bin_size: "240L" },
+  { id: "POI-42397", name: "Ramada by Wyndham Downtown Dubai", default_job_type: "Recova", location: "Downtown Dubai", latitude: 25.192874, longitude: 55.272453, radius: 150.0, allocated_time: "11:00 - 14:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-43017", name: "Sephora Moe", default_job_type: "Recova", location: "Mall of the Emirates", latitude: 25.120013, longitude: 55.200284, radius: 150.0, allocated_time: "10:00 - 13:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42395", name: "Waldorf Astoria Dubai Palm Jumeirah", default_job_type: "Recova", location: "Palm Jumeirah", latitude: 25.134567, longitude: 55.151119, radius: 150.0, allocated_time: "12:00 - 15:00", expected_bins: 3, bin_size: "240L" },
+  { id: "POI-42370", name: "The Retreat Palm Dubai MGallery by Sofitel", default_job_type: "Recova", location: "Palm Jumeirah", latitude: 25.139212, longitude: 55.142465, radius: 150.0, allocated_time: "13:00 - 16:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42394", name: "Ramada JBR", default_job_type: "Recova", location: "JBR Dubai", latitude: 25.072287, longitude: 55.129757, radius: 150.0, allocated_time: "14:00 - 17:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42410", name: "CBRE", default_job_type: "Recova", location: "Dubai Marina", latitude: 25.090698, longitude: 55.152833, radius: 200.0, allocated_time: "09:00 - 12:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42413", name: "Pallavi", default_job_type: "Recova", location: "Barsha Heights", latitude: 25.090185, longitude: 55.169852, radius: 200.0, allocated_time: "10:00 - 13:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42412", name: "Mariska", default_job_type: "Recova", location: "Al Quoz", latitude: 25.111526, longitude: 55.368279, radius: 200.0, allocated_time: "11:00 - 14:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-43018", name: "Sephora Mcc", default_job_type: "Recova", location: "Mirdif City Centre", latitude: 25.22195, longitude: 55.433823, radius: 150.0, allocated_time: "10:00 - 13:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-42400", name: "Laing O'Rourke Ajman", default_job_type: "ReClaim", location: "Ajman Industrial", latitude: 25.39384, longitude: 55.577943, radius: 463.3, allocated_time: "08:00 - 14:00", expected_bins: 1, bin_size: "1100L" },
+  { id: "POI-47661", name: "Bustanica dwc", default_job_type: "ReClaim", location: "Dubai South / DWC", latitude: 24.861154, longitude: 55.159049, radius: 125.0, allocated_time: "09:00 - 15:00", expected_bins: 2, bin_size: "1100L" },
+  { id: "POI-42478", name: "Shobha Dip", default_job_type: "ReClaim", location: "Dubai Investment Park", latitude: 24.975273, longitude: 55.170246, radius: 200.0, allocated_time: "09:00 - 15:00", expected_bins: 2, bin_size: "1100L" },
+  { id: "POI-42398", name: "Farm Location", default_job_type: "ReClaim", location: "Al Lisaili", latitude: 24.728029, longitude: 55.617836, radius: 170.0, allocated_time: "07:00 - 13:00", expected_bins: 1, bin_size: "CBM" },
+  { id: "POI-43019", name: "Sephora Yass Mall", default_job_type: "Recova", location: "Yas Mall, Abu Dhabi", latitude: 24.48882, longitude: 54.60869, radius: 150.0, allocated_time: "10:00 - 14:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-43020", name: "Sephora Reem Mall", default_job_type: "Recova", location: "Reem Mall, Abu Dhabi", latitude: 24.488368, longitude: 54.400386, radius: 150.0, allocated_time: "10:00 - 14:00", expected_bins: 2, bin_size: "240L" },
+  { id: "POI-43021", name: "Sephora Al Hamra Mall", default_job_type: "Recova", location: "Al Hamra Mall, RAK", latitude: 25.682973, longitude: 55.781791, radius: 150.0, allocated_time: "10:00 - 14:00", expected_bins: 2, bin_size: "240L" }
+];
 
 type JobData = {
   id: string;
@@ -206,7 +256,10 @@ const DEFAULT_SCHEDULE = {
 
 function App() {
   const [schedule, setSchedule] = useState<{vehicles: any[], jobs: JobData[]}>(DEFAULT_SCHEDULE);
-  const [clients, setClients] = useState<ClientData[]>([]);
+  const [clients, setClients] = useState<ClientData[]>(DEFAULT_CLIENTS);
+  const [showPois, setShowPois] = useState(true);
+  const [showVehicles, setShowVehicles] = useState(true);
+  const [showJobs, setShowJobs] = useState(true);
   const [showClientModal, setShowClientModal] = useState(false);
   const [currentView, setCurrentView] = useState<'dashboard' | 'schedule' | 'map'>('dashboard');
   const [messages, setMessages] = useState<Message[]>([
@@ -241,9 +294,11 @@ function App() {
   const fetchClients = async () => {
     try {
       const res = await axios.get(`${API_BASE}/clients`);
-      if (res.data) setClients(res.data);
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setClients(res.data);
+      }
     } catch (err) {
-      console.warn("Backend clients not connected.");
+      console.warn("Backend clients not connected, using default POIs.");
     }
   };
 
@@ -264,6 +319,35 @@ function App() {
         const loginData = await loginRes.json();
         if (loginData.success && loginData.data?.live_token) {
           trackerTokenRef.current = loginData.data.live_token;
+        }
+        if (loginData.success && loginData.data?.geofences && loginData.data.geofences.length > 0) {
+          const directPois: ClientData[] = loginData.data.geofences.map((g: any) => {
+            const name = (g.name || '').replace(/&#39;/g, "'");
+            let lat = 25.15, lon = 55.20, radius = 150;
+            const area = g.area || '';
+            const match = area.match(/CIRCLE\s*\(\s*([\d\.-]+)\s+([\d\.-]+)\s*,\s*([\d\.-]+)\s*\)/);
+            if (match) {
+              lat = parseFloat(match[1]);
+              lon = parseFloat(match[2]);
+              radius = parseFloat(match[3]);
+            }
+            const isReclaim = ['farm', 'facility', 'laing', 'bustanica', 'shobha'].some(w => name.toLowerCase().includes(w));
+            return {
+              id: `POI-${g.id}`,
+              name: name,
+              default_job_type: isReclaim ? 'ReClaim' : 'Recova',
+              location: name,
+              latitude: lat,
+              longitude: lon,
+              radius: radius,
+              allocated_time: '09:00 - 17:00',
+              expected_bins: isReclaim ? 1 : 2,
+              bin_size: isReclaim ? '1100L' : '240L'
+            };
+          });
+          if (directPois.length > 0) {
+            setClients(directPois);
+          }
         }
       }
 
@@ -1507,24 +1591,126 @@ Capabilities & Rules:
             </div>
 
             {/* Map */}
-            <div className="glass-panel map-container" style={{ flex: 1, padding: 0, overflow: 'hidden' }}>
-              <div className="section-header" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, padding: '20px', background: 'linear-gradient(to bottom, rgba(11,12,16,0.9), transparent)', pointerEvents: 'none' }}>
-                Live Map <MapIcon size={20} color="var(--accent-cyan)" />
+            <div className="glass-panel map-container" style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
+              <div className="section-header" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, padding: '16px 20px', background: 'linear-gradient(to bottom, rgba(11,12,16,0.92), rgba(11,12,16,0.4), transparent)', pointerEvents: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>Live Telemetry & Geofence Map</span> <MapIcon size={18} color="var(--accent-cyan)" />
+                </div>
+                <div style={{ pointerEvents: 'auto', display: 'flex', gap: 6 }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPois(!showPois)} 
+                    style={{ background: showPois ? 'rgba(2, 132, 199, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    📍 POIs ({clients.length})
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowVehicles(!showVehicles)} 
+                    style={{ background: showVehicles ? 'rgba(42, 157, 143, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    🚛 Trucks ({displayMarkers.length})
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowJobs(!showJobs)} 
+                    style={{ background: showJobs ? 'rgba(230, 57, 70, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    📦 Stops ({schedule.jobs.length})
+                  </button>
+                </div>
               </div>
+
               <MapContainer center={centerPosition} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={true}>
                 <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                {displayMarkers.map(m => (
+                
+                {/* 1. Client POIs & Geofence Circles */}
+                {showPois && clients.map(client => {
+                  if (!client.latitude || !client.longitude) return null;
+                  const isRecova = client.default_job_type === 'Recova';
+                  const color = isRecova ? '#0284c7' : '#7c3aed';
+                  const radiusMeters = client.radius || 150;
+                  const cleanName = client.name.replace(/&#39;/g, "'");
+
+                  return (
+                    <React.Fragment key={`sched-poi-${client.id}`}>
+                      <Circle
+                        center={[client.latitude, client.longitude]}
+                        radius={radiusMeters}
+                        pathOptions={{
+                          color: color,
+                          fillColor: color,
+                          fillOpacity: 0.12,
+                          weight: 1.5,
+                          dashArray: '4, 4'
+                        }}
+                      />
+                      <Marker position={[client.latitude, client.longitude]} icon={createPoiIcon(client)}>
+                        <Popup>
+                          <div style={{ color: '#0f172a', padding: '6px', minWidth: '200px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                              <strong style={{ fontSize: '0.95rem' }}>{cleanName}</strong>
+                              <span style={{ 
+                                background: isRecova ? 'rgba(2,132,199,0.15)' : 'rgba(124,58,237,0.15)', 
+                                color: color, 
+                                fontSize: '0.72rem', 
+                                fontWeight: 700, 
+                                padding: '2px 6px', 
+                                borderRadius: '4px' 
+                              }}>
+                                {client.default_job_type}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '3px' }}>
+                              📍 <strong>Location:</strong> {client.location}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '3px' }}>
+                              ⭕ <strong>Geofence Radius:</strong> {radiusMeters} m
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '8px' }}>
+                              ⏰ <strong>Window:</strong> {client.allocated_time || '09:00 - 17:00'}
+                            </div>
+                            <button
+                              type="button"
+                              style={{
+                                width: '100%',
+                                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => {
+                                handleSendMessage(undefined, `Schedule a ${client.default_job_type} collection job for ${cleanName}`);
+                              }}
+                            >
+                              + Schedule Collection Here
+                            </button>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* 2. Live GPS Trucks */}
+                {showVehicles && displayMarkers.map(m => (
                   <Marker key={m.id} position={[m.latitude, m.longitude]} icon={createTruckIcon(m)}>
                     <Popup><div style={{ color: '#333' }}><strong>{m.deviceName}</strong><br/>Speed: {m.speed} km/h<br/>Status: {m.motion ? 'Moving' : 'Idle'}</div></Popup>
                   </Marker>
                 ))}
-                {schedule.jobs.map(j => {
+
+                {/* 3. Scheduled Jobs */}
+                {showJobs && schedule.jobs.map(j => {
                   if (!j.latitude || !j.longitude) return null;
                   return (
                     <Marker key={j.id} position={[j.latitude, j.longitude]} icon={j.assigned_vehicle ? greenIcon : redIcon}>
                       <Popup><div style={{ color: '#333' }}><strong>{j.client}</strong> [{j.type}]<br/>Weight: {j.expected_weight_kg} kg</div></Popup>
                     </Marker>
-                  )
+                  );
                 })}
               </MapContainer>
             </div>
@@ -1534,10 +1720,33 @@ Capabilities & Rules:
         {/* VIEW: FULL SCREEN MAP */}
         {currentView === 'map' && (
           <div className="glass-panel map-container" style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
-            <div className="section-header" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, padding: '20px', background: 'linear-gradient(to bottom, rgba(11,12,16,0.9), transparent)', pointerEvents: 'none', display: 'flex', justifyContent: 'space-between' }}>
-              <div>Fleet Global View <MapIcon size={20} color="var(--accent-cyan)" style={{ display: 'inline', marginLeft: 8 }} /></div>
-              <div style={{ pointerEvents: 'auto' }}>
-                <button className="btn btn-confirm" onClick={() => setPlaybackMode(!playbackMode)} style={{ background: playbackMode ? 'var(--danger)' : 'var(--accent-cyan)', color: playbackMode ? 'white' : 'black', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="section-header" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, padding: '16px 20px', background: 'linear-gradient(to bottom, rgba(11,12,16,0.92), rgba(11,12,16,0.4), transparent)', pointerEvents: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>Fleet Global View</span> <MapIcon size={18} color="var(--accent-cyan)" />
+              </div>
+              <div style={{ pointerEvents: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowPois(!showPois)} 
+                  style={{ background: showPois ? 'rgba(2, 132, 199, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  📍 POIs ({clients.length})
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowVehicles(!showVehicles)} 
+                  style={{ background: showVehicles ? 'rgba(42, 157, 143, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  🚛 Trucks ({displayMarkers.length})
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowJobs(!showJobs)} 
+                  style={{ background: showJobs ? 'rgba(230, 57, 70, 0.85)' : 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  📦 Stops ({schedule.jobs.length})
+                </button>
+                <button className="btn btn-confirm" onClick={() => setPlaybackMode(!playbackMode)} style={{ background: playbackMode ? 'var(--danger)' : 'var(--accent-cyan)', color: playbackMode ? 'white' : 'black', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}>
                   <PlayCircle size={16} /> {playbackMode ? 'Stop Playback' : 'Historical Playback'}
                 </button>
               </div>
@@ -1545,23 +1754,98 @@ Capabilities & Rules:
             
             <MapContainer center={centerPosition} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={true}>
               <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-              {displayMarkers.map(m => (
+              
+              {/* 1. Client POIs & Geofence Circles */}
+              {showPois && clients.map(client => {
+                if (!client.latitude || !client.longitude) return null;
+                const isRecova = client.default_job_type === 'Recova';
+                const color = isRecova ? '#0284c7' : '#7c3aed';
+                const radiusMeters = client.radius || 150;
+                const cleanName = client.name.replace(/&#39;/g, "'");
+
+                return (
+                  <React.Fragment key={`map-poi-${client.id}`}>
+                    <Circle
+                      center={[client.latitude, client.longitude]}
+                      radius={radiusMeters}
+                      pathOptions={{
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.12,
+                        weight: 1.5,
+                        dashArray: '4, 4'
+                      }}
+                    />
+                    <Marker position={[client.latitude, client.longitude]} icon={createPoiIcon(client)}>
+                      <Popup>
+                        <div style={{ color: '#0f172a', padding: '6px', minWidth: '200px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                            <strong style={{ fontSize: '0.95rem' }}>{cleanName}</strong>
+                            <span style={{ 
+                              background: isRecova ? 'rgba(2,132,199,0.15)' : 'rgba(124,58,237,0.15)', 
+                              color: color, 
+                              fontSize: '0.72rem', 
+                              fontWeight: 700, 
+                              padding: '2px 6px', 
+                              borderRadius: '4px' 
+                            }}>
+                              {client.default_job_type}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '3px' }}>
+                            📍 <strong>Location:</strong> {client.location}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '3px' }}>
+                            ⭕ <strong>Geofence Radius:</strong> {radiusMeters} m
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '8px' }}>
+                            ⏰ <strong>Window:</strong> {client.allocated_time || '09:00 - 17:00'}
+                          </div>
+                          <button
+                            type="button"
+                            style={{
+                              width: '100%',
+                              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              handleSendMessage(undefined, `Schedule a ${client.default_job_type} collection job for ${cleanName}`);
+                            }}
+                          >
+                            + Schedule Collection Here
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  </React.Fragment>
+                );
+              })}
+
+              {/* 2. Live GPS Trucks */}
+              {showVehicles && displayMarkers.map(m => (
                 <Marker key={m.id} position={[m.latitude, m.longitude]} icon={createTruckIcon(m)}>
                   <Popup><div style={{ color: '#333' }}><strong>{m.deviceName}</strong><br/>Speed: {m.speed} km/h<br/>Status: {m.motion ? 'Moving' : 'Idle'}</div></Popup>
                 </Marker>
               ))}
-              {schedule.jobs.map(j => {
+
+              {/* 3. Scheduled Jobs */}
+              {showJobs && schedule.jobs.map(j => {
                 if (!j.latitude || !j.longitude) return null;
                 return (
                   <Marker key={j.id} position={[j.latitude, j.longitude]} icon={j.assigned_vehicle ? greenIcon : redIcon}>
                     <Popup><div style={{ color: '#333' }}><strong>{j.client}</strong> [{j.type}]<br/>Weight: {j.expected_weight_kg} kg<br/>{j.status.toUpperCase()}</div></Popup>
                   </Marker>
-                )
+                );
               })}
 
               {/* Mock Playback Route (Trailing behind each truck) */}
               {playbackMode && displayMarkers.map(m => {
-                // Generate a fake winding path behind the marker
                 const path: [number, number][] = [];
                 for(let i=10; i>=0; i--) {
                   path.push([m.latitude - (i * 0.01) + (Math.sin(i)*0.005), m.longitude - (i * 0.015) + (Math.cos(i)*0.005)]);
