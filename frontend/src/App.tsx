@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Truck, Settings, Bell, Check, X,
   Users, Plus, Clock, Trash2, MapPin, Activity, PlayCircle,
   Flame, Scale, Route, Gauge,
-  Sparkles, AlertTriangle, Fuel, Award
+  Sparkles, AlertTriangle, Fuel, Award,
+  Edit2, Lock, Unlock, Search
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -194,6 +195,7 @@ type JobData = {
   expected_weight_kg: number;
   assigned_vehicle: string | null;
   status: string;
+  locked?: boolean;
   eta_minutes?: number;
 };
 
@@ -279,6 +281,257 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [playbackMode, setPlaybackMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showJobModal, setShowJobModal] = useState(false);
+  const [editingJob, setEditingJob] = useState<JobData | null>(null);
+  const [editingClient, setEditingClient] = useState<ClientData | null>(null);
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedJobClientId, setSelectedJobClientId] = useState('');
+
+  // --- JOB / SCHEDULE CRUD HANDLERS ---
+  const handleOpenAddJob = () => {
+    setEditingJob(null);
+    setSelectedJobClientId('');
+    setShowJobModal(true);
+  };
+
+  const handleOpenEditJob = (job: JobData) => {
+    setEditingJob(job);
+    const matchedClient = clients.find(c => c.name.toLowerCase() === job.client.toLowerCase());
+    setSelectedJobClientId(matchedClient ? matchedClient.id : '');
+    setShowJobModal(true);
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm("Remove this stop from today's schedule?")) return;
+    try {
+      await axios.delete(`${API_BASE}/jobs/${jobId}`);
+    } catch (e) {
+      console.warn("Backend delete error, updating state locally:", e);
+    }
+    setSchedule(prev => ({
+      ...prev,
+      jobs: prev.jobs.filter(j => j.id !== jobId)
+    }));
+  };
+
+  const handleReassignJob = async (jobId: string, newVehicleId: string | null) => {
+    try {
+      await axios.put(`${API_BASE}/jobs/${jobId}`, {
+        assigned_vehicle: newVehicleId || "none",
+        status: newVehicleId ? "assigned" : "unassigned"
+      });
+    } catch (e) {
+      console.warn("Backend reassign error, updating state locally:", e);
+    }
+    setSchedule(prev => ({
+      ...prev,
+      jobs: prev.jobs.map(j => j.id === jobId ? {
+        ...j,
+        assigned_vehicle: newVehicleId,
+        status: newVehicleId ? "assigned" : "unassigned"
+      } : j)
+    }));
+  };
+
+  const handleToggleJobLock = async (jobId: string, currentLocked?: boolean) => {
+    const nextLocked = !currentLocked;
+    try {
+      await axios.put(`${API_BASE}/jobs/${jobId}`, { locked: nextLocked });
+    } catch (e) {
+      console.warn("Backend lock toggle error:", e);
+    }
+    setSchedule(prev => ({
+      ...prev,
+      jobs: prev.jobs.map(j => j.id === jobId ? { ...j, locked: nextLocked } : j)
+    }));
+  };
+
+  const handleSaveJob = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const clientName = formData.get('client_name') as string;
+    const jobType = formData.get('job_type') as string;
+    const assignedVehicle = (formData.get('assigned_vehicle') as string) || null;
+    const expectedWeight = parseFloat(formData.get('expected_weight_kg') as string) || 400;
+    const location = (formData.get('location') as string) || clientName;
+    const lat = parseFloat(formData.get('latitude') as string) || null;
+    const lon = parseFloat(formData.get('longitude') as string) || null;
+    const allocatedTime = (formData.get('allocated_time') as string) || '09:00 - 12:00';
+    const expectedBins = parseInt(formData.get('expected_bins') as string) || 2;
+    const binSize = (formData.get('bin_size') as string) || '240L';
+    const status = (formData.get('status') as string) || (assignedVehicle && assignedVehicle !== 'none' ? 'assigned' : 'unassigned');
+
+    if (editingJob) {
+      try {
+        await axios.put(`${API_BASE}/jobs/${editingJob.id}`, {
+          client: clientName,
+          type: jobType,
+          location: location,
+          latitude: lat,
+          longitude: lon,
+          allocated_time: allocatedTime,
+          expected_bins: expectedBins,
+          bin_size: binSize,
+          expected_weight_kg: expectedWeight,
+          assigned_vehicle: assignedVehicle === 'none' ? null : assignedVehicle,
+          status: status
+        });
+      } catch (err) {
+        console.warn("Backend update error, updating local state:", err);
+      }
+
+      setSchedule(prev => ({
+        ...prev,
+        jobs: prev.jobs.map(j => j.id === editingJob.id ? {
+          ...j,
+          client: clientName,
+          type: jobType,
+          location: location,
+          latitude: lat || undefined,
+          longitude: lon || undefined,
+          allocated_time: allocatedTime,
+          expected_bins: expectedBins,
+          bin_size: binSize,
+          expected_weight_kg: expectedWeight,
+          assigned_vehicle: assignedVehicle === 'none' ? null : assignedVehicle,
+          status: status
+        } : j)
+      }));
+    } else {
+      const newId = `JOB-${Math.floor(100 + Math.random() * 900)}`;
+      try {
+        await axios.post(`${API_BASE}/jobs`, {
+          client_name: clientName,
+          job_type: jobType,
+          expected_weight_kg: expectedWeight,
+          latitude: lat,
+          longitude: lon,
+          allocated_time: allocatedTime,
+          expected_bins: expectedBins,
+          bin_size: binSize
+        });
+      } catch (err) {
+        console.warn("Backend create error, creating locally:", err);
+      }
+
+      const newJob: JobData = {
+        id: newId,
+        client: clientName,
+        type: jobType,
+        location: location,
+        latitude: lat || undefined,
+        longitude: lon || undefined,
+        allocated_time: allocatedTime,
+        expected_bins: expectedBins,
+        bin_size: binSize,
+        expected_weight_kg: expectedWeight,
+        assigned_vehicle: assignedVehicle === 'none' ? null : assignedVehicle,
+        status: assignedVehicle && assignedVehicle !== 'none' ? 'assigned' : 'unassigned'
+      };
+
+      setSchedule(prev => ({
+        ...prev,
+        jobs: [...prev.jobs, newJob]
+      }));
+    }
+
+    setShowJobModal(false);
+    setEditingJob(null);
+  };
+
+  // --- CLIENT REGISTRY CRUD HANDLERS ---
+  const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const defaultJobType = formData.get('type') as string;
+    const location = (formData.get('location') as string) || name;
+    const lat = parseFloat(formData.get('latitude') as string) || null;
+    const lon = parseFloat(formData.get('longitude') as string) || null;
+    const radius = parseFloat(formData.get('radius') as string) || 150;
+    const allocatedTime = (formData.get('allocated_time') as string) || '09:00 - 17:00';
+    const expectedBins = parseInt(formData.get('expected_bins') as string) || 2;
+    const binSize = (formData.get('bin_size') as string) || '240L';
+
+    if (editingClient) {
+      try {
+        await axios.put(`${API_BASE}/clients/${editingClient.id}`, {
+          name,
+          default_job_type: defaultJobType,
+          location,
+          latitude: lat,
+          longitude: lon,
+          radius,
+          allocated_time: allocatedTime,
+          expected_bins: expectedBins,
+          bin_size: binSize
+        });
+      } catch (err) {
+        console.warn("Backend client update error, updating locally:", err);
+      }
+
+      setClients(prev => prev.map(c => c.id === editingClient.id ? {
+        ...c,
+        name,
+        default_job_type: defaultJobType,
+        location,
+        latitude: lat || undefined,
+        longitude: lon || undefined,
+        radius,
+        allocated_time: allocatedTime,
+        expected_bins: expectedBins,
+        bin_size: binSize
+      } : c));
+      setEditingClient(null);
+    } else {
+      const newId = `C-${Math.floor(1000 + Math.random() * 9000)}`;
+      try {
+        await axios.post(`${API_BASE}/clients`, {
+          name,
+          default_job_type: defaultJobType,
+          location,
+          latitude: lat,
+          longitude: lon,
+          radius,
+          allocated_time: allocatedTime,
+          expected_bins: expectedBins,
+          bin_size: binSize
+        });
+      } catch (err) {
+        console.warn("Backend client create error, creating locally:", err);
+      }
+
+      const newClient: ClientData = {
+        id: newId,
+        name,
+        default_job_type: defaultJobType,
+        location,
+        latitude: lat || undefined,
+        longitude: lon || undefined,
+        radius,
+        allocated_time: allocatedTime,
+        expected_bins: expectedBins,
+        bin_size: binSize
+      };
+
+      setClients(prev => [newClient, ...prev]);
+    }
+
+    (e.target as HTMLFormElement).reset();
+  };
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (!window.confirm(`Are you sure you want to delete client "${clientName}" from the registry?`)) return;
+    try {
+      await axios.delete(`${API_BASE}/clients/${clientId}`);
+    } catch (err) {
+      console.warn("Backend client delete error, deleting locally:", err);
+    }
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    if (editingClient?.id === clientId) {
+      setEditingClient(null);
+    }
+  };
 
   const fetchSchedule = async () => {
     try {
@@ -1525,46 +1778,105 @@ Capabilities & Rules:
             </div>
 
             {/* Schedule */}
-            <div className="glass-panel schedule-container" style={{ width: '350px', flex: 'none' }}>
+            <div className="glass-panel schedule-container" style={{ width: '370px', flex: 'none' }}>
               <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>Daily Trip Schedule</div>
+                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Daily Trip Schedule</div>
+                <button 
+                  type="button" 
+                  className="btn btn-confirm" 
+                  onClick={handleOpenAddJob} 
+                  style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5, borderRadius: 8 }}
+                >
+                  <Plus size={14} /> Add Stop
+                </button>
               </div>
+
               <div style={{ overflowY: 'auto', paddingRight: '4px' }}>
                 {schedule.vehicles.map(vehicle => {
                   const jobs = schedule.jobs.filter(j => j.assigned_vehicle === vehicle.id);
                   const currentWeight = jobs.reduce((sum, j) => sum + j.expected_weight_kg, 0);
                   const progress = (currentWeight / vehicle.max_weight_kg) * 100;
                   return (
-                    <div key={vehicle.id} className="vehicle-card">
+                    <div key={vehicle.id} className="vehicle-card" style={{ marginBottom: 16 }}>
                       <div className="vehicle-header">
                         <div>
                           <span className="vehicle-name">{vehicle.name}</span>
                           <span style={{ fontSize: '0.8rem', marginLeft: 8, color: 'var(--text-secondary)' }}>({vehicle.id})</span>
                         </div>
-                        <div style={{ fontSize: '0.85rem' }}>{currentWeight} / {vehicle.max_weight_kg} kg</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{currentWeight} / {vehicle.max_weight_kg} kg</div>
                       </div>
                       <div className="progress-bar-bg">
                         <div className="progress-bar-fill" style={{ width: `${Math.min(progress, 100)}%`, background: progress > 90 ? 'var(--danger)' : '' }}></div>
                       </div>
-                      <div style={{ marginTop: 16 }}>
-                        {jobs.length === 0 ? <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>No stops assigned.</div> : jobs.map((job, idx) => (
-                          <div key={job.id} className="job-item">
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <div>
-                                <span style={{ marginRight: 8, color: 'var(--text-secondary)' }}>{idx + 1}.</span>
-                                {job.client} <span style={{ marginLeft: 8, fontSize: '0.75rem' }} className={job.type === 'Recova' ? 'job-type-recova' : 'job-type-reclaim'}>[{job.type}]</span>
+                      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {jobs.length === 0 ? (
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '8px 0' }}>No stops assigned to this truck.</div>
+                        ) : jobs.map((job, idx) => (
+                          <div key={job.id} className="job-item" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>{idx + 1}.</span>
+                                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff' }}>{job.client}</span>
+                                  <span style={{ fontSize: '0.7rem' }} className={job.type === 'Recova' ? 'job-type-recova' : 'job-type-reclaim'}>[{job.type}]</span>
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 3 }}>
+                                  {job.location} • <strong>{job.expected_weight_kg} kg</strong>
+                                </div>
                               </div>
-                              <div>{job.expected_weight_kg} kg</div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleToggleJobLock(job.id, job.locked)} 
+                                  title={job.locked ? "Unlock stop (allow AI changes)" : "Lock stop (prevent AI changes)"} 
+                                  style={{ background: job.locked ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.05)', border: 'none', color: job.locked ? '#f59e0b' : 'var(--text-secondary)', padding: '4px 6px', borderRadius: 4, cursor: 'pointer' }}
+                                >
+                                  {job.locked ? <Lock size={13} /> : <Unlock size={13} />}
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleOpenEditJob(job)} 
+                                  title="Edit Stop" 
+                                  style={{ background: 'rgba(2, 132, 199, 0.15)', border: 'none', color: 'var(--accent-cyan)', padding: '4px 6px', borderRadius: 4, cursor: 'pointer' }}
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleDeleteJob(job.id)} 
+                                  title="Delete Stop" 
+                                  style={{ background: 'rgba(230, 57, 70, 0.15)', border: 'none', color: 'var(--danger)', padding: '4px 6px', borderRadius: 4, cursor: 'pointer' }}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, marginLeft: 20 }}>
-                              {job.eta_minutes !== undefined && job.eta_minutes !== null && job.status !== 'completed' && (
-                                <span style={{ background: 'rgba(69, 162, 158, 0.2)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent-cyan)', fontWeight: 'bold', marginRight: 8 }}>
-                                  ⏱️ ETA: {job.eta_minutes} mins
-                                </span>
-                              )}
-                              {job.expected_bins && job.bin_size && <span><Trash2 size={10} style={{display:'inline'}}/> {job.expected_bins}x {job.bin_size} &nbsp;&nbsp;</span>}
-                              {job.allocated_time && <span><Clock size={10} style={{display:'inline'}}/> {job.allocated_time} &nbsp;&nbsp;</span>}
-                              {job.location && <span><MapPin size={10} style={{display:'inline'}}/> {job.location}</span>}
+
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                              <div>
+                                {job.eta_minutes !== undefined && job.eta_minutes !== null && job.status !== 'completed' && (
+                                  <span style={{ background: 'rgba(69, 162, 158, 0.2)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent-cyan)', fontWeight: 'bold', marginRight: 6 }}>
+                                    ⏱️ ETA: {job.eta_minutes}m
+                                  </span>
+                                )}
+                                {job.expected_bins && job.bin_size && <span>{job.expected_bins}x {job.bin_size} &nbsp;</span>}
+                                {job.allocated_time && <span>• {job.allocated_time}</span>}
+                              </div>
+
+                              {/* Quick Reassign Vehicle */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Truck:</span>
+                                <select 
+                                  value={job.assigned_vehicle || 'none'} 
+                                  onChange={(e) => handleReassignJob(job.id, e.target.value === 'none' ? null : e.target.value)}
+                                  style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid var(--surface-border)', borderRadius: 4, fontSize: '0.72rem', padding: '2px 4px', cursor: 'pointer' }}
+                                >
+                                  <option value="V1">Isuzu (V1)</option>
+                                  <option value="V2">Fuso (V2)</option>
+                                  <option value="none">Unassigned</option>
+                                </select>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1572,20 +1884,79 @@ Capabilities & Rules:
                     </div>
                   );
                 })}
+
+                {/* Unassigned Stops Section */}
                 <div style={{ marginTop: 20 }}>
-                  <div style={{ fontSize: '0.9rem', color: 'var(--warning)', marginBottom: 8, fontWeight: 600 }}>Unassigned Jobs</div>
-                  {schedule.jobs.filter(j => !j.assigned_vehicle).map(job => (
-                    <div key={job.id} className="job-item" style={{ borderLeft: '3px solid var(--warning)', paddingLeft: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <div>{job.client} <span className={job.type === 'Recova' ? 'job-type-recova' : 'job-type-reclaim'}>[{job.type}]</span></div>
-                        <div>{job.expected_weight_kg} kg</div>
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                        {job.expected_bins && job.bin_size && <span><Trash2 size={10} style={{display:'inline'}}/> {job.expected_bins}x {job.bin_size} &nbsp;&nbsp;</span>}
-                        {job.allocated_time && <span><Clock size={10} style={{display:'inline'}}/> {job.allocated_time}</span>}
-                      </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ fontSize: '0.92rem', color: 'var(--warning)', fontWeight: 700 }}>
+                      Unassigned Stops ({schedule.jobs.filter(j => !j.assigned_vehicle).length})
                     </div>
-                  ))}
+                  </div>
+                  
+                  {schedule.jobs.filter(j => !j.assigned_vehicle).length === 0 ? (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>All stops are currently assigned.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {schedule.jobs.filter(j => !j.assigned_vehicle).map(job => (
+                        <div key={job.id} className="job-item" style={{ borderLeft: '3px solid var(--warning)', background: 'rgba(244, 162, 97, 0.05)', borderRadius: '0 10px 10px 0', padding: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff' }}>{job.client}</span>
+                                <span style={{ fontSize: '0.7rem' }} className={job.type === 'Recova' ? 'job-type-recova' : 'job-type-reclaim'}>[{job.type}]</span>
+                              </div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                                {job.location} • <strong>{job.expected_weight_kg} kg</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <button 
+                                type="button" 
+                                onClick={() => handleOpenEditJob(job)} 
+                                title="Edit Stop" 
+                                style={{ background: 'rgba(2, 132, 199, 0.15)', border: 'none', color: 'var(--accent-cyan)', padding: '4px 6px', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteJob(job.id)} 
+                                title="Delete Stop" 
+                                style={{ background: 'rgba(230, 57, 70, 0.15)', border: 'none', color: 'var(--danger)', padding: '4px 6px', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              {job.expected_bins && job.bin_size && <span>{job.expected_bins}x {job.bin_size} &nbsp;</span>}
+                              {job.allocated_time && <span>{job.allocated_time}</span>}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button 
+                                type="button" 
+                                onClick={() => handleReassignJob(job.id, 'V1')}
+                                style={{ background: 'rgba(2, 132, 199, 0.2)', border: '1px solid rgba(2, 132, 199, 0.4)', color: 'var(--accent-cyan)', padding: '3px 8px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                → Isuzu (V1)
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleReassignJob(job.id, 'V2')}
+                                style={{ background: 'rgba(124, 58, 237, 0.2)', border: '1px solid rgba(124, 58, 237, 0.4)', color: '#c084fc', padding: '3px 8px', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                → Fuso (V2)
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1897,101 +2268,513 @@ Capabilities & Rules:
         </div>
       )}
 
-      {/* Client Registry Modal */}
+      {/* Client Registry Modal with Full CRUD (Edit, Delete, Update, Search) */}
       {showClientModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
-          <div className="glass-panel" style={{ width: 550, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+          <div className="glass-panel" style={{ width: 620, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+            
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 24px 16px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(69, 162, 158, 0.1), transparent)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(2, 132, 199, 0.15), rgba(124, 58, 237, 0.08), transparent)' }}>
               <div>
-                <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Users size={24} color="var(--accent-cyan)" />
-                  Ehfaaz Client Registry
+                <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem' }}>
+                  <Users size={22} color="var(--accent-cyan)" />
+                  Ehfaaz Client Registry & Geofences
                 </h2>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  Manage clients for AI auto-population.
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                  Manage registered client locations, service profiles & geofence parameters.
                 </div>
               </div>
-              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowClientModal(false)} />
+              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => { setShowClientModal(false); setEditingClient(null); }} />
+            </div>
+
+            {/* Search and Filters Bar */}
+            <div style={{ padding: '12px 24px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--surface-border)', display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-secondary)' }} />
+                <input 
+                  type="text" 
+                  placeholder="Search clients by name, area or type..." 
+                  value={clientSearch} 
+                  onChange={(e) => setClientSearch(e.target.value)} 
+                  className="chat-input" 
+                  style={{ width: '100%', paddingLeft: 36, paddingRight: 12, borderRadius: 8, fontSize: '0.88rem' }}
+                />
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                {clients.filter(c => !clientSearch || c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.location.toLowerCase().includes(clientSearch.toLowerCase())).length} of {clients.length} Clients
+              </div>
             </div>
             
-            <div style={{ padding: '24px', overflowY: 'auto', overflowX: 'hidden' }}>
+            <div style={{ padding: '20px 24px', overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
+              
               {/* Existing Clients List */}
-              <div style={{ display: 'grid', gap: '12px', marginBottom: '32px' }}>
-                {clients.map(c => (
-                  <div key={c.id} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}>
-                    <div>
-                      <div style={{ fontWeight: '600', color: 'white', fontSize: '1.05rem', marginBottom: '4px' }}>{c.name}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px' }}>
-                        <span><MapPin size={12} style={{display:'inline', marginBottom:'-2px'}}/> {c.location}</span>
-                        <span className={c.default_job_type === 'Recova' ? 'job-type-recova' : 'job-type-reclaim'}>{c.default_job_type}</span>
-                        <span><Clock size={12} style={{display:'inline', marginBottom:'-2px'}}/> {c.allocated_time}</span>
+              <div style={{ display: 'grid', gap: '10px', marginBottom: '28px' }}>
+                {clients
+                  .filter(c => !clientSearch || c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.location.toLowerCase().includes(clientSearch.toLowerCase()) || c.default_job_type.toLowerCase().includes(clientSearch.toLowerCase()))
+                  .map(c => {
+                    const isRecova = c.default_job_type === 'Recova';
+                    const isSelectedForEdit = editingClient?.id === c.id;
+
+                    return (
+                      <div 
+                        key={c.id} 
+                        style={{ 
+                          background: isSelectedForEdit ? 'rgba(2, 132, 199, 0.12)' : 'rgba(0,0,0,0.35)', 
+                          border: isSelectedForEdit ? '1px solid var(--accent-cyan)' : '1px solid rgba(255,255,255,0.06)', 
+                          padding: '14px 16px', 
+                          borderRadius: '10px', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          transition: 'all 0.2s' 
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontWeight: '700', color: 'white', fontSize: '0.98rem' }}>{c.name}</span>
+                            <span className={isRecova ? 'job-type-recova' : 'job-type-reclaim'} style={{ fontSize: '0.72rem' }}>
+                              {c.default_job_type}
+                            </span>
+                            {c.radius && (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>
+                                ⭕ {c.radius}m
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <span><MapPin size={11} style={{ display: 'inline', marginBottom: '-1px' }} /> {c.location}</span>
+                            {c.latitude && c.longitude && <span>🌐 {c.latitude.toFixed(4)}, {c.longitude.toFixed(4)}</span>}
+                            <span><Clock size={11} style={{ display: 'inline', marginBottom: '-1px' }} /> {c.allocated_time || '09:00 - 17:00'}</span>
+                            {c.expected_bins && <span>📦 {c.expected_bins}x {c.bin_size || '240L'}</span>}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons: Edit and Delete */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 12 }}>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setEditingClient(c);
+                            }}
+                            title="Edit Client" 
+                            style={{ 
+                              background: isSelectedForEdit ? 'var(--accent-cyan)' : 'rgba(2, 132, 199, 0.15)', 
+                              color: isSelectedForEdit ? '#000' : 'var(--accent-cyan)', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: 6, 
+                              cursor: 'pointer', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 4, 
+                              fontSize: '0.78rem', 
+                              fontWeight: 600 
+                            }}
+                          >
+                            <Edit2 size={13} /> Edit
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => handleDeleteClient(c.id, c.name)} 
+                            title="Delete Client" 
+                            style={{ 
+                              background: 'rgba(230, 57, 70, 0.15)', 
+                              color: 'var(--danger)', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: 6, 
+                              cursor: 'pointer', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 4, 
+                              fontSize: '0.78rem', 
+                              fontWeight: 600 
+                            }}
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.85rem', color: 'white' }}>{c.expected_bins}x {c.bin_size}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Capacity</div>
-                    </div>
-                  </div>
-                ))}
-                {clients.length === 0 && <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No clients registered yet.</div>}
+                    );
+                  })}
+                {clients.length === 0 && <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '16px' }}>No registered clients found.</div>}
               </div>
 
-              {/* Add New Client Form */}
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                try {
-                  await axios.post(`${API_BASE}/clients`, {
-                    name: formData.get('name'),
-                    default_job_type: formData.get('type'),
-                    location: formData.get('location'),
-                    latitude: parseFloat(formData.get('latitude') as string) || null,
-                    longitude: parseFloat(formData.get('longitude') as string) || null,
-                    allocated_time: formData.get('allocated_time'),
-                    expected_bins: parseInt(formData.get('expected_bins') as string) || null,
-                    bin_size: formData.get('bin_size')
-                  });
-                  fetchClients();
-                  (e.target as HTMLFormElement).reset();
-                } catch (err) {
-                  console.error(err);
-                }
-              }} style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', border: '1px solid var(--surface-border)' }}>
-                <h4 style={{ margin: '0 0 16px 0', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Plus size={18} color="var(--accent-cyan)" />
-                  Register New Client
-                </h4>
+              {/* Add New Client / Edit Client Form */}
+              <form 
+                key={editingClient ? `edit-${editingClient.id}` : 'create-new'}
+                onSubmit={handleSaveClient} 
+                style={{ 
+                  background: editingClient ? 'rgba(2, 132, 199, 0.08)' : 'rgba(255,255,255,0.03)', 
+                  padding: '20px', 
+                  borderRadius: '12px', 
+                  border: editingClient ? '1px solid var(--accent-cyan)' : '1px solid var(--surface-border)' 
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+                    {editingClient ? <Edit2 size={18} color="var(--accent-cyan)" /> : <Plus size={18} color="var(--accent-cyan)" />}
+                    {editingClient ? `Edit Client: ${editingClient.name}` : 'Register New Client'}
+                  </h4>
+                  {editingClient && (
+                    <button 
+                      type="button" 
+                      onClick={() => setEditingClient(null)} 
+                      style={{ background: 'transparent', border: '1px solid var(--surface-border)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: 4, fontSize: '0.75rem', cursor: 'pointer' }}
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <input name="name" className="chat-input" placeholder="Client Name (e.g. Al Maya Supermarket)" required style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Client / Facility Name</label>
+                    <input 
+                      name="name" 
+                      defaultValue={editingClient?.name || ''} 
+                      className="chat-input" 
+                      placeholder="e.g. Sephora Dubai Mall" 
+                      required 
+                      style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                    />
+                  </div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-                    <input name="location" className="chat-input" placeholder="Area Name" required style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
-                    <select name="type" className="chat-input" style={{ width: '100%', borderRadius: '8px', padding: '12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}>
-                      <option value="Recova">Recova</option>
-                      <option value="ReClaim">ReClaim</option>
-                    </select>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Area / Location</label>
+                      <input 
+                        name="location" 
+                        defaultValue={editingClient?.location || ''} 
+                        className="chat-input" 
+                        placeholder="e.g. Downtown Dubai" 
+                        required 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Service Type</label>
+                      <select 
+                        name="type" 
+                        defaultValue={editingClient?.default_job_type || 'Recova'} 
+                        className="chat-input" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
+                      >
+                        <option value="Recova">Recova</option>
+                        <option value="ReClaim">ReClaim</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <input name="latitude" type="number" step="any" className="chat-input" placeholder="Latitude (e.g. 25.2)" style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
-                    <input name="longitude" type="number" step="any" className="chat-input" placeholder="Longitude (e.g. 55.2)" style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Latitude</label>
+                      <input 
+                        name="latitude" 
+                        type="number" 
+                        step="any" 
+                        defaultValue={editingClient?.latitude || ''} 
+                        className="chat-input" 
+                        placeholder="e.g. 25.1972" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Longitude</label>
+                      <input 
+                        name="longitude" 
+                        type="number" 
+                        step="any" 
+                        defaultValue={editingClient?.longitude || ''} 
+                        className="chat-input" 
+                        placeholder="e.g. 55.2797" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Geofence (m)</label>
+                      <input 
+                        name="radius" 
+                        type="number" 
+                        step="any" 
+                        defaultValue={editingClient?.radius || 150} 
+                        className="chat-input" 
+                        placeholder="150" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr', gap: '12px' }}>
-                    <input name="expected_bins" type="number" className="chat-input" placeholder="Bins (e.g. 4)" style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
-                    <input name="bin_size" className="chat-input" placeholder="Size (e.g. 240L)" style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
-                    <input name="allocated_time" className="chat-input" placeholder="Time (e.g. 09:00-12:00)" style={{ width: '100%', borderRadius: '8px', padding: '12px' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 2fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bins</label>
+                      <input 
+                        name="expected_bins" 
+                        type="number" 
+                        defaultValue={editingClient?.expected_bins || 2} 
+                        className="chat-input" 
+                        placeholder="2" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bin Size</label>
+                      <input 
+                        name="bin_size" 
+                        defaultValue={editingClient?.bin_size || '240L'} 
+                        className="chat-input" 
+                        placeholder="240L / 1100L / CBM" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Time Window</label>
+                      <input 
+                        name="allocated_time" 
+                        defaultValue={editingClient?.allocated_time || '09:00 - 17:00'} 
+                        className="chat-input" 
+                        placeholder="09:00 - 17:00" 
+                        style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                      />
+                    </div>
                   </div>
 
-                  <button type="submit" className="btn btn-confirm" style={{ width: '100%', padding: '14px', marginTop: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+                  <button 
+                    type="submit" 
+                    className="btn btn-confirm" 
+                    style={{ width: '100%', padding: '12px', marginTop: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}
+                  >
                     <Check size={18} />
-                    Save Detailed Client
+                    {editingClient ? 'Update Client Record' : 'Save New Client to Registry'}
                   </button>
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Trip Schedule Stop Add / Edit Modal */}
+      {showJobModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+          <div className="glass-panel" style={{ width: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--surface-border)', background: 'linear-gradient(to right, rgba(0, 119, 182, 0.15), transparent)' }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.2rem' }}>
+                  {editingJob ? <Edit2 size={20} color="var(--accent-cyan)" /> : <Plus size={20} color="var(--accent-cyan)" />}
+                  {editingJob ? `Edit Schedule Stop (${editingJob.id})` : 'Add Stop to Daily Trip Schedule'}
+                </h2>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                  {editingJob ? 'Update route assignment, payload weight, or collection parameters.' : 'Dispatch a new collection stop and assign to vehicle route.'}
+                </div>
+              </div>
+              <X style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => { setShowJobModal(false); setEditingJob(null); }} />
+            </div>
+
+            <form onSubmit={handleSaveJob} style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              
+              {/* Quick autofill from registered clients */}
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: 4, display: 'block' }}>
+                  📍 Autofill From Registered Client POIs:
+                </label>
+                <select 
+                  value={selectedJobClientId}
+                  onChange={(e) => {
+                    const cId = e.target.value;
+                    setSelectedJobClientId(cId);
+                    const matched = clients.find(c => c.id === cId);
+                    if (matched) {
+                      const form = e.target.form;
+                      if (form) {
+                        (form.elements.namedItem('client_name') as HTMLInputElement).value = matched.name;
+                        (form.elements.namedItem('location') as HTMLInputElement).value = matched.location;
+                        (form.elements.namedItem('job_type') as HTMLSelectElement).value = matched.default_job_type;
+                        if (matched.latitude) (form.elements.namedItem('latitude') as HTMLInputElement).value = matched.latitude.toString();
+                        if (matched.longitude) (form.elements.namedItem('longitude') as HTMLInputElement).value = matched.longitude.toString();
+                        if (matched.expected_bins) (form.elements.namedItem('expected_bins') as HTMLInputElement).value = matched.expected_bins.toString();
+                        if (matched.bin_size) (form.elements.namedItem('bin_size') as HTMLInputElement).value = matched.bin_size;
+                        if (matched.allocated_time) (form.elements.namedItem('allocated_time') as HTMLInputElement).value = matched.allocated_time;
+                      }
+                    }
+                  }}
+                  className="chat-input"
+                  style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', background: 'rgba(2, 132, 199, 0.1)', color: '#fff', cursor: 'pointer' }}
+                >
+                  <option value="">-- Select a registered client location --</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.default_job_type} - {c.location})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Client Name and Service Type */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Client Name</label>
+                  <input 
+                    name="client_name" 
+                    defaultValue={editingJob?.client || ''} 
+                    className="chat-input" 
+                    placeholder="e.g. Sephora Dubai Mall" 
+                    required 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Job Type</label>
+                  <select 
+                    name="job_type" 
+                    defaultValue={editingJob?.type || 'Recova'} 
+                    className="chat-input" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
+                  >
+                    <option value="Recova">Recova</option>
+                    <option value="ReClaim">ReClaim</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Vehicle Assignment & Expected Weight */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Vehicle Assignment</label>
+                  <select 
+                    name="assigned_vehicle" 
+                    defaultValue={editingJob?.assigned_vehicle || 'none'} 
+                    className="chat-input" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
+                  >
+                    <option value="V1">Isuzu 48390 (1-Ton Pickup)</option>
+                    <option value="V2">Fuso 54127 (3-Ton Medium Truck)</option>
+                    <option value="none">Unassigned (Pending)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Weight (kg)</label>
+                  <input 
+                    name="expected_weight_kg" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingJob?.expected_weight_kg || 400} 
+                    className="chat-input" 
+                    placeholder="400" 
+                    required 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+              </div>
+
+              {/* Location & Status */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Area / Location</label>
+                  <input 
+                    name="location" 
+                    defaultValue={editingJob?.location || ''} 
+                    className="chat-input" 
+                    placeholder="e.g. Downtown Dubai" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Stop Status</label>
+                  <select 
+                    name="status" 
+                    defaultValue={editingJob?.status || 'pending'} 
+                    className="chat-input" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px', appearance: 'none', background: 'rgba(0,0,0,0.5)', color: 'white', cursor: 'pointer' }}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Coordinates */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Latitude</label>
+                  <input 
+                    name="latitude" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingJob?.latitude || ''} 
+                    className="chat-input" 
+                    placeholder="25.1972" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Longitude</label>
+                  <input 
+                    name="longitude" 
+                    type="number" 
+                    step="any" 
+                    defaultValue={editingJob?.longitude || ''} 
+                    className="chat-input" 
+                    placeholder="55.2797" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+              </div>
+
+              {/* Bins & Time */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 2fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bins</label>
+                  <input 
+                    name="expected_bins" 
+                    type="number" 
+                    defaultValue={editingJob?.expected_bins || 2} 
+                    className="chat-input" 
+                    placeholder="2" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Bin Size</label>
+                  <input 
+                    name="bin_size" 
+                    defaultValue={editingJob?.bin_size || '240L'} 
+                    className="chat-input" 
+                    placeholder="240L / 1100L" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Time Window</label>
+                  <input 
+                    name="allocated_time" 
+                    defaultValue={editingJob?.allocated_time || '09:00 - 12:00'} 
+                    className="chat-input" 
+                    placeholder="09:00 - 12:00" 
+                    style={{ width: '100%', borderRadius: '8px', padding: '10px 12px' }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-confirm" 
+                  style={{ flex: 1, padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}
+                >
+                  <Check size={18} />
+                  {editingJob ? 'Save Stop Changes' : 'Confirm & Add Stop to Schedule'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setShowJobModal(false); setEditingJob(null); }}
+                  className="btn btn-reject" 
+                  style={{ padding: '12px 18px', fontSize: '0.9rem' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

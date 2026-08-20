@@ -267,12 +267,36 @@ class ClientCreateRequest(BaseModel):
     expected_bins: int = None
     bin_size: str = None
 
+class ClientUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    default_job_type: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    radius: Optional[float] = None
+    allocated_time: Optional[str] = None
+    expected_bins: Optional[int] = None
+    bin_size: Optional[str] = None
+
+class JobUpdateRequest(BaseModel):
+    client: Optional[str] = None
+    type: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    allocated_time: Optional[str] = None
+    expected_bins: Optional[int] = None
+    bin_size: Optional[str] = None
+    expected_weight_kg: Optional[float] = None
+    assigned_vehicle: Optional[str] = None
+    status: Optional[str] = None
+    locked: Optional[bool] = None
+
 @app.get("/api/clients")
 def get_clients(db: Session = Depends(get_db)):
     """Returns registered clients."""
     clients = db.query(Client).all()
     if not clients:
-        # Try fetching from Locator POIs if database is empty
         pois = get_locator_pois()
         for p in pois:
             c = Client(
@@ -301,12 +325,75 @@ def create_client_endpoint(req: ClientCreateRequest, db: Session = Depends(get_d
     new_client = Client(id=new_id, name=req.name, default_job_type=req.default_job_type, location=req.location, latitude=req.latitude, longitude=req.longitude, radius=req.radius or 150.0, allocated_time=req.allocated_time, expected_bins=req.expected_bins, bin_size=req.bin_size)
     db.add(new_client)
     db.commit()
-    return {"status": "Success", "id": new_id}
+    return {"status": "Success", "id": new_id, "client": {"id": new_id, "name": req.name, "default_job_type": req.default_job_type, "location": req.location, "latitude": req.latitude, "longitude": req.longitude, "radius": req.radius or 150.0, "allocated_time": req.allocated_time, "expected_bins": req.expected_bins, "bin_size": req.bin_size}}
+
+@app.put("/api/clients/{client_id}")
+def update_client_endpoint(client_id: str, req: ClientUpdateRequest, db: Session = Depends(get_db)):
+    """Update an existing client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    if req.name is not None: client.name = req.name
+    if req.default_job_type is not None: client.default_job_type = req.default_job_type
+    if req.location is not None: client.location = req.location
+    if req.latitude is not None: client.latitude = req.latitude
+    if req.longitude is not None: client.longitude = req.longitude
+    if req.radius is not None: client.radius = req.radius
+    if req.allocated_time is not None: client.allocated_time = req.allocated_time
+    if req.expected_bins is not None: client.expected_bins = req.expected_bins
+    if req.bin_size is not None: client.bin_size = req.bin_size
+
+    db.commit()
+    return {"status": "Success", "client": {"id": client.id, "name": client.name, "default_job_type": client.default_job_type, "location": client.location, "latitude": client.latitude, "longitude": client.longitude, "radius": client.radius, "allocated_time": client.allocated_time, "expected_bins": client.expected_bins, "bin_size": client.bin_size}}
+
+@app.delete("/api/clients/{client_id}")
+def delete_client_endpoint(client_id: str, db: Session = Depends(get_db)):
+    """Delete a client from registry."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    db.delete(client)
+    db.commit()
+    return {"status": "Success", "message": f"Client {client_id} deleted"}
 
 @app.post("/api/jobs")
 def create_job_endpoint(req: JobCreateRequest, db: Session = Depends(get_db)):
     """Manual endpoint to create a job from UI."""
     return {"status": create_job(db, req.client_name, req.job_type, req.expected_weight_kg, req.latitude, req.longitude, req.allocated_time, req.expected_bins, req.bin_size)}
+
+@app.put("/api/jobs/{job_id}")
+def update_job_endpoint(job_id: str, req: JobUpdateRequest, db: Session = Depends(get_db)):
+    """Update a scheduled job/stop."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if req.client is not None: job.client = req.client
+    if req.type is not None: job.type = req.type
+    if req.location is not None: job.location = req.location
+    if req.latitude is not None: job.latitude = req.latitude
+    if req.longitude is not None: job.longitude = req.longitude
+    if req.allocated_time is not None: job.allocated_time = req.allocated_time
+    if req.expected_bins is not None: job.expected_bins = req.expected_bins
+    if req.bin_size is not None: job.bin_size = req.bin_size
+    if req.expected_weight_kg is not None: job.expected_weight_kg = req.expected_weight_kg
+    if req.assigned_vehicle is not None: job.assigned_vehicle = req.assigned_vehicle if req.assigned_vehicle != "none" else None
+    if req.status is not None: job.status = req.status
+    if req.locked is not None: job.locked = req.locked
+
+    db.commit()
+    return {"status": "Success", "message": f"Job {job_id} updated"}
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job_endpoint(job_id: str, db: Session = Depends(get_db)):
+    """Delete a job/stop from schedule."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    db.delete(job)
+    db.commit()
+    return {"status": "Success", "message": f"Job {job_id} deleted"}
 
 @app.post("/api/chat")
 def chat_with_agent(req: ChatRequest, db: Session = Depends(get_db)):
